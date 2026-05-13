@@ -1,0 +1,11 @@
+{
+  "name": "syncpad",
+  "private": true,
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "cd services/api && ./mvnw spring-boot:run",
+    "dev:collab": "npm --prefix services/collab run dev"
+  }
+}

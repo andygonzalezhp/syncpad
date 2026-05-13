@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: syncpad-postgres
+    environment:
+      POSTGRES_DB: syncpad
+      POSTGRES_USER: syncpad
+      POSTGRES_PASSWORD: syncpad
+    ports:
+      - "5432:5432"
+    volumes:
+      - syncpad-postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: syncpad-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  syncpad-postgres-data:
