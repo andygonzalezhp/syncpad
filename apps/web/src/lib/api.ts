@@ -18,8 +18,18 @@ export type DocumentPermission = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
-const DEV_USER_EMAIL =
+export const DEV_USER_EMAIL =
   process.env.NEXT_PUBLIC_DEV_USER_EMAIL ?? "andy@syncpad.dev";
+
+export function displayNameFromEmail(email: string): string {
+  const localPart = email.split("@")[0];
+
+  if (!localPart) {
+    return "User";
+  }
+
+  return localPart.charAt(0).toUpperCase() + localPart.slice(1);
+}
 
 const userHeaders = {
   "X-User-Email": DEV_USER_EMAIL,
@@ -102,10 +112,13 @@ export async function deleteDocument(id: string): Promise<void> {
 export async function listDocumentPermissions(
   documentId: string,
 ): Promise<DocumentPermission[]> {
-  const response = await fetch(`${API_URL}/api/documents/${documentId}/permissions`, {
-    cache: "no-store",
-    headers: userHeaders,
-  });
+  const response = await fetch(
+    `${API_URL}/api/documents/${documentId}/permissions`,
+    {
+      cache: "no-store",
+      headers: userHeaders,
+    },
+  );
 
   if (!response.ok) {
     throw new Error("Failed to load document permissions");
@@ -119,14 +132,17 @@ export async function shareDocument(
   email: string,
   role: Exclude<DocumentRole, "OWNER">,
 ): Promise<DocumentPermission> {
-  const response = await fetch(`${API_URL}/api/documents/${documentId}/permissions`, {
-    method: "POST",
-    headers: {
-      ...userHeaders,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `${API_URL}/api/documents/${documentId}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        ...userHeaders,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, role }),
     },
-    body: JSON.stringify({ email, role }),
-  });
+  );
 
   if (!response.ok) {
     throw new Error("Failed to share document");

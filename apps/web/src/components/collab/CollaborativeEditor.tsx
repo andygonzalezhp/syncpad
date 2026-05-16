@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -11,10 +10,18 @@ import {
   useHocuspocusProvider,
   useHocuspocusSyncStatus,
 } from "@hocuspocus/provider-react";
+import { DocumentRole } from "@/lib/api";
 
-type DemoUser = {
+type CurrentUser = {
+  email: string;
   name: string;
   color: string;
+  role: DocumentRole;
+};
+
+type CollaborativeEditorProps = {
+  currentUser: CurrentUser;
+  currentUserRole: DocumentRole;
 };
 
 type AwarenessState = {
@@ -24,54 +31,34 @@ type AwarenessState = {
   user?: {
     name?: string;
     color?: string;
+    email?: string;
+    role?: DocumentRole;
   };
 };
 
-const demoUsers: DemoUser[] = [
-  { name: "Ada", color: "#f97316" },
-  { name: "Grace", color: "#22c55e" },
-  { name: "Linus", color: "#3b82f6" },
-  { name: "Margaret", color: "#e879f9" },
-  { name: "Donald", color: "#facc15" },
-  { name: "Barbara", color: "#14b8a6" },
-];
-
-function getDemoUser(): DemoUser {
-  if (typeof window === "undefined") {
-    return demoUsers[0];
-  }
-
-  const storageKey = "syncpad-demo-user";
-  const existing = window.sessionStorage.getItem(storageKey);
-
-  if (existing) {
-    return JSON.parse(existing) as DemoUser;
-  }
-
-  const user = demoUsers[Math.floor(Math.random() * demoUsers.length)];
-  window.sessionStorage.setItem(storageKey, JSON.stringify(user));
-
-  return user;
-}
-
-function getAwarenessUser(state: AwarenessState): DemoUser {
+function getAwarenessUser(state: AwarenessState) {
   return {
     name: state.user?.name ?? state.name ?? "Guest",
     color: state.user?.color ?? state.color ?? "#737373",
+    role: state.user?.role,
   };
 }
 
-export default function CollaborativeEditor() {
+export default function CollaborativeEditor({
+  currentUser,
+  currentUserRole,
+}: CollaborativeEditorProps) {
   const provider = useHocuspocusProvider();
   const awareness = useHocuspocusAwareness() as AwarenessState[];
   const connectionStatus = useHocuspocusConnectionStatus();
   const syncStatus = useHocuspocusSyncStatus();
 
-  const currentUser = useMemo(() => getDemoUser(), []);
+  const canEdit = currentUserRole === "OWNER" || currentUserRole === "EDITOR";
 
   const editor = useEditor(
     {
       immediatelyRender: false,
+      editable: canEdit,
       extensions: [
         StarterKit.configure({
           undoRedo: false,
@@ -91,7 +78,14 @@ export default function CollaborativeEditor() {
         },
       },
     },
-    [provider, currentUser.name, currentUser.color],
+    [
+      provider,
+      currentUser.email,
+      currentUser.name,
+      currentUser.color,
+      currentUserRole,
+      canEdit,
+    ],
   );
 
   const collaborators = awareness.map((state) => ({
@@ -113,6 +107,7 @@ export default function CollaborativeEditor() {
                     : "bg-red-500"
               }`}
             />
+
             <span className="text-neutral-300">
               {connectionStatus === "connected"
                 ? "Connected"
@@ -130,7 +125,8 @@ export default function CollaborativeEditor() {
 
           <p className="mt-1 text-xs text-neutral-500">
             You are{" "}
-            <span style={{ color: currentUser.color }}>{currentUser.name}</span>
+            <span style={{ color: currentUser.color }}>{currentUser.name}</span>{" "}
+            <span className="text-neutral-600">({currentUserRole})</span>
           </p>
         </div>
 
@@ -138,7 +134,7 @@ export default function CollaborativeEditor() {
           {collaborators.map((user) => (
             <div
               key={user.clientId}
-              title={user.name}
+              title={`${user.name}${user.role ? ` (${user.role})` : ""}`}
               className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 ring-neutral-900"
               style={{ backgroundColor: user.color }}
             >
@@ -148,41 +144,49 @@ export default function CollaborativeEditor() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => editor?.chain().focus().toggleBold().run()}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
-        >
-          Bold
-        </button>
+      {!canEdit && (
+        <div className="mb-4 rounded-2xl border border-yellow-900/70 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-100">
+          You have viewer access. This document is read-only.
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => editor?.chain().focus().toggleItalic().run()}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
-        >
-          Italic
-        </button>
+      {canEdit && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleBold().run()}
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
+          >
+            Bold
+          </button>
 
-        <button
-          type="button"
-          onClick={() =>
-            editor?.chain().focus().toggleHeading({ level: 2 }).run()
-          }
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
-        >
-          Heading
-        </button>
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
+          >
+            Italic
+          </button>
 
-        <button
-          type="button"
-          onClick={() => editor?.chain().focus().toggleBulletList().run()}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
-        >
-          Bullet List
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() =>
+              editor?.chain().focus().toggleHeading({ level: 2 }).run()
+            }
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
+          >
+            Heading
+          </button>
+
+          <button
+            type="button"
+            onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-800"
+          >
+            Bullet List
+          </button>
+        </div>
+      )}
 
       <EditorContent editor={editor} />
     </section>

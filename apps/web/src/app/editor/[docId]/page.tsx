@@ -24,9 +24,15 @@ export default async function EditorPage({ params }: EditorPageProps) {
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-neutral-100">
       <div className="mx-auto max-w-5xl">
-        <EditorHeader docId={docId} initialTitle={document.title} />
+        <EditorHeader
+          docId={docId}
+          initialTitle={document.title}
+          currentUserRole={document.role}
+        />
+
         <SharePanel documentId={docId} currentUserRole={document.role} />
-        <CollaborativeRoom docId={docId} />
+
+        <CollaborativeRoom docId={docId} currentUserRole={document.role} />
       </div>
     </main>
   );
