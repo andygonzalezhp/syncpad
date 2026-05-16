@@ -15,6 +15,12 @@ const pool = new Pool({
   max: 10,
 });
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 const server = new Server({
   name: "syncpad-collab",
   port,
@@ -42,9 +48,7 @@ const server = new Server({
           return null;
         }
 
-        console.log(
-          `[load] document=${documentName} bytes=${row.state.length}`,
-        );
+        console.log(`[load] document=${documentName} bytes=${row.state.length}`);
 
         return row.state;
       },
@@ -63,6 +67,17 @@ const server = new Server({
           `,
           [documentName, buffer],
         );
+
+        if (isUuid(documentName)) {
+          await pool.query(
+            `
+            UPDATE documents
+            SET updated_at = NOW()
+            WHERE id = $1::uuid
+            `,
+            [documentName],
+          );
+        }
 
         console.log(`[store] document=${documentName} bytes=${buffer.length}`);
       },

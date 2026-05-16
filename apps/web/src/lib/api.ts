@@ -19,6 +19,18 @@ export async function listDocuments(): Promise<DocumentSummary[]> {
   return response.json();
 }
 
+export async function getDocument(id: string): Promise<DocumentSummary> {
+  const response = await fetch(`${API_URL}/api/documents/${id}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load document");
+  }
+
+  return response.json();
+}
+
 export async function createDocument(title: string): Promise<DocumentSummary> {
   const response = await fetch(`${API_URL}/api/documents`, {
     method: "POST",
@@ -33,4 +45,33 @@ export async function createDocument(title: string): Promise<DocumentSummary> {
   }
 
   return response.json();
+}
+
+export async function renameDocument(
+  id: string,
+  title: string,
+): Promise<DocumentSummary> {
+  const response = await fetch(`${API_URL}/api/documents/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to rename document");
+  }
+
+  return response.json();
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/documents/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to delete document");
+  }
 }

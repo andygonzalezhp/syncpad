@@ -1,4 +1,5 @@
 import CollaborativeRoom from "@/components/collab/CollaborativeRoom";
+import { getDocument } from "@/lib/api";
 
 type EditorPageProps = {
   params: Promise<{
@@ -9,6 +10,15 @@ type EditorPageProps = {
 export default async function EditorPage({ params }: EditorPageProps) {
   const { docId } = await params;
 
+  let title = "Untitled document";
+
+  try {
+    const document = await getDocument(docId);
+    title = document.title;
+  } catch {
+    title = "Unknown document";
+  }
+
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-neutral-100">
       <div className="mx-auto max-w-5xl">
@@ -18,7 +28,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
           </p>
 
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            Collaborative Editor
+            {title}
           </h1>
 
           <p className="mt-2 text-sm text-neutral-400">

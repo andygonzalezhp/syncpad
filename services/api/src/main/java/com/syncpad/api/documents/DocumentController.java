@@ -32,4 +32,18 @@ public class DocumentController {
     public DocumentResponse getDocument(@PathVariable UUID id) {
         return documentService.getDocument(id);
     }
+
+    @PatchMapping("/{id}")
+    public DocumentResponse renameDocument(
+            @PathVariable UUID id,
+            @Valid @RequestBody RenameDocumentRequest request
+    ) {
+        return documentService.renameDocument(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDocument(@PathVariable UUID id) {
+        documentService.deleteDocument(id);
+    }
 }

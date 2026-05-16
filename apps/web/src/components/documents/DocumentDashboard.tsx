@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createDocument,
+  deleteDocument,
   DocumentSummary,
   listDocuments,
 } from "@/lib/api";
@@ -57,10 +58,34 @@ export default function DocumentDashboard() {
     }
   }
 
+  async function handleDeleteDocument(id: string) {
+    const confirmed = window.confirm(
+      "Delete this document? This cannot be undone.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError(null);
+      await deleteDocument(id);
+
+      setDocuments((current) =>
+        current.filter((document) => document.id !== id),
+      );
+    } catch {
+      setError("Could not delete document.");
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-4xl">
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 shadow-2xl">
-        <form onSubmit={handleCreateDocument} className="flex flex-col gap-3 md:flex-row">
+        <form
+          onSubmit={handleCreateDocument}
+          className="flex flex-col gap-3 md:flex-row"
+        >
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -97,23 +122,32 @@ export default function DocumentDashboard() {
           ) : (
             <div className="mt-4 grid gap-3">
               {documents.map((document) => (
-                <Link
+                <div
                   key={document.id}
-                  href={`/editor/${document.id}`}
-                  className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 transition hover:border-neutral-600 hover:bg-neutral-900"
+                  className="flex items-start justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 transition hover:border-neutral-600 hover:bg-neutral-900"
                 >
-                  <h3 className="font-medium text-neutral-100">
-                    {document.title}
-                  </h3>
+                  <Link href={`/editor/${document.id}`} className="min-w-0 flex-1">
+                    <h3 className="font-medium text-neutral-100">
+                      {document.title}
+                    </h3>
 
-                  <p className="mt-2 font-mono text-xs text-neutral-500">
-                    {document.id}
-                  </p>
+                    <p className="mt-2 truncate font-mono text-xs text-neutral-500">
+                      {document.id}
+                    </p>
 
-                  <p className="mt-2 text-xs text-neutral-500">
-                    Updated {new Date(document.updatedAt).toLocaleString()}
-                  </p>
-                </Link>
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Updated {new Date(document.updatedAt).toLocaleString()}
+                    </p>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDocument(document.id)}
+                    className="rounded-xl border border-red-900/70 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40"
+                  >
+                    Delete
+                  </button>
+                </div>
               ))}
             </div>
           )}
