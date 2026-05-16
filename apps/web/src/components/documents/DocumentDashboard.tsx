@@ -22,6 +22,8 @@ export default function DocumentDashboard() {
   async function loadDocuments() {
     try {
       setError(null);
+      setIsLoading(true);
+
       const data = await listDocuments();
       setDocuments(data);
     } catch {
@@ -96,7 +98,7 @@ export default function DocumentDashboard() {
           <button
             type="submit"
             disabled={isCreating}
-            className="min-h-12 rounded-2xl bg-white px-5 font-medium text-neutral-950 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-12 rounded-2xl bg-white px-5 font-medium text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isCreating ? "Creating..." : "Create document"}
           </button>
@@ -109,9 +111,17 @@ export default function DocumentDashboard() {
         )}
 
         <div className="mt-8">
-          <h2 className="text-sm font-medium uppercase tracking-[0.25em] text-neutral-500">
-            Documents
-          </h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-sm font-medium uppercase tracking-[0.25em] text-neutral-500">
+              Documents
+            </h2>
+
+            {!isLoading && documents.length > 0 && (
+              <p className="text-sm text-neutral-500">
+                {documents.length} {documents.length === 1 ? "document" : "documents"}
+              </p>
+            )}
+          </div>
 
           {isLoading ? (
             <p className="mt-4 text-neutral-400">Loading documents...</p>
@@ -126,10 +136,19 @@ export default function DocumentDashboard() {
                   key={document.id}
                   className="flex items-start justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 transition hover:border-neutral-600 hover:bg-neutral-900"
                 >
-                  <Link href={`/editor/${document.id}`} className="min-w-0 flex-1">
-                    <h3 className="font-medium text-neutral-100">
-                      {document.title}
-                    </h3>
+                  <Link
+                    href={`/editor/${document.id}`}
+                    className="min-w-0 flex-1"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium text-neutral-100">
+                        {document.title}
+                      </h3>
+
+                      <span className="rounded-full border border-neutral-700 px-2 py-0.5 text-xs text-neutral-400">
+                        {document.role}
+                      </span>
+                    </div>
 
                     <p className="mt-2 truncate font-mono text-xs text-neutral-500">
                       {document.id}
@@ -140,13 +159,15 @@ export default function DocumentDashboard() {
                     </p>
                   </Link>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteDocument(document.id)}
-                    className="rounded-xl border border-red-900/70 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40"
-                  >
-                    Delete
-                  </button>
+                  {document.role === "OWNER" && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDocument(document.id)}
+                      className="rounded-xl border border-red-900/70 px-3 py-1.5 text-sm text-red-300 transition hover:bg-red-950/40"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

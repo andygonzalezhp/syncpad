@@ -4,12 +4,24 @@ import com.syncpad.api.documents.DocumentNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import com.syncpad.api.documents.DocumentAccessDeniedException;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(DocumentAccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Map<String, Object> handleAccessDenied(DocumentAccessDeniedException ex) {
+        return Map.of(
+                "timestamp", OffsetDateTime.now(),
+                "status", 403,
+                "error", "Forbidden",
+                "message", ex.getMessage()
+        );
+    }
 
     @ExceptionHandler(DocumentNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

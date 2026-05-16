@@ -11,61 +11,101 @@ import java.util.UUID;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentPermissionRepository documentPermissionRepository;
+    private final AppUserService appUserService;
     private final JdbcTemplate jdbcTemplate;
 
     public DocumentService(
             DocumentRepository documentRepository,
+            DocumentPermissionRepository documentPermissionRepository,
+            AppUserService appUserService,
             JdbcTemplate jdbcTemplate
     ) {
         this.documentRepository = documentRepository;
+        this.documentPermissionRepository = documentPermissionRepository;
+        this.appUserService = appUserService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
-    public DocumentResponse createDocument(CreateDocumentRequest request) {
+    public DocumentResponse createDocument(CreateDocumentRequest request, String userEmail) {
+        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+
         Document document = new Document(request.title().trim());
         Document savedDocument = documentRepository.save(document);
 
-        return DocumentResponse.from(savedDocument);
+        DocumentPermission permission = new DocumentPermission(
+                savedDocument,
+                user,
+                DocumentRole.OWNER
+        );
+
+        documentPermissionRepository.save(permission);
+
+        return DocumentResponse.from(savedDocument, DocumentRole.OWNER);
     }
 
     @Transactional(readOnly = true)
-    public List<DocumentResponse> listDocuments() {
-        return documentRepository.findAllByOrderByUpdatedAtDesc()
+    public List<DocumentResponse> listDocuments(String userEmail) {
+        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+
+        return documentPermissionRepository.findAllByUserWithDocument(user)
                 .stream()
-                .map(DocumentResponse::from)
+                .map(permission -> DocumentResponse.from(
+                        permission.getDocument(),
+                        permission.getRole()
+                ))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public DocumentResponse getDocument(UUID id) {
-        Document document = findDocumentOrThrow(id);
-        return DocumentResponse.from(document);
+    public DocumentResponse getDocument(UUID id, String userEmail) {
+        DocumentPermission permission = findPermissionOrThrow(id, userEmail);
+
+        return DocumentResponse.from(
+                permission.getDocument(),
+                permission.getRole()
+        );
     }
 
     @Transactional
-    public DocumentResponse renameDocument(UUID id, RenameDocumentRequest request) {
-        Document document = findDocumentOrThrow(id);
+    public DocumentResponse renameDocument(
+            UUID id,
+            RenameDocumentRequest request,
+            String userEmail
+    ) {
+        DocumentPermission permission = findPermissionOrThrow(id, userEmail);
+        requireOwner(permission, id);
 
+        Document document = permission.getDocument();
         document.rename(request.title().trim());
 
-        return DocumentResponse.from(document);
+        return DocumentResponse.from(document, permission.getRole());
     }
 
     @Transactional
-    public void deleteDocument(UUID id) {
-        Document document = findDocumentOrThrow(id);
+    public void deleteDocument(UUID id, String userEmail) {
+        DocumentPermission permission = findPermissionOrThrow(id, userEmail);
+        requireOwner(permission, id);
 
         jdbcTemplate.update(
                 "DELETE FROM document_states WHERE document_name = ?",
                 id.toString()
         );
 
-        documentRepository.delete(document);
+        documentRepository.delete(permission.getDocument());
     }
 
-    private Document findDocumentOrThrow(UUID id) {
-        return documentRepository.findById(id)
-                .orElseThrow(() -> new DocumentNotFoundException(id));
+    private DocumentPermission findPermissionOrThrow(UUID documentId, String userEmail) {
+        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+
+        return documentPermissionRepository.findByDocumentIdAndUser(documentId, user)
+                .orElseThrow(() -> new DocumentNotFoundException(documentId));
+    }
+
+    private void requireOwner(DocumentPermission permission, UUID documentId) {
+        if (!permission.isOwner()) {
+            throw new DocumentAccessDeniedException(documentId);
+        }
     }
 }
