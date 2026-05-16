@@ -1,5 +1,7 @@
 import CollaborativeRoom from "@/components/collab/CollaborativeRoom";
+import EditorHeader from "@/components/editor/EditorHeader";
 import { getDocument } from "@/lib/api";
+import { notFound } from "next/navigation";
 
 type EditorPageProps = {
   params: Promise<{
@@ -10,35 +12,18 @@ type EditorPageProps = {
 export default async function EditorPage({ params }: EditorPageProps) {
   const { docId } = await params;
 
-  let title = "Untitled document";
+  let document;
 
   try {
-    const document = await getDocument(docId);
-    title = document.title;
+    document = await getDocument(docId);
   } catch {
-    title = "Unknown document";
+    notFound();
   }
 
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-neutral-100">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6">
-          <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">
-            SyncPad
-          </p>
-
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {title}
-          </h1>
-
-          <p className="mt-2 text-sm text-neutral-400">
-            Document ID:{" "}
-            <span className="rounded bg-neutral-900 px-2 py-1 font-mono text-neutral-200">
-              {docId}
-            </span>
-          </p>
-        </div>
-
+        <EditorHeader docId={docId} initialTitle={document.title} />
         <CollaborativeRoom docId={docId} />
       </div>
     </main>
