@@ -96,6 +96,71 @@ public class DocumentService {
         documentRepository.delete(permission.getDocument());
     }
 
+    @Transactional(readOnly = true)
+    public List<DocumentPermissionResponse> listPermissions(UUID documentId, String userEmail) {
+        DocumentPermission currentUserPermission = findPermissionOrThrow(documentId, userEmail);
+        requireOwner(currentUserPermission, documentId);
+
+        return documentPermissionRepository.findAllByDocumentIdWithUser(documentId)
+                .stream()
+                .map(DocumentPermissionResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public DocumentPermissionResponse shareDocument(
+            UUID documentId,
+            ShareDocumentRequest request,
+            String userEmail
+    ) {
+        DocumentPermission currentUserPermission = findPermissionOrThrow(documentId, userEmail);
+        requireOwner(currentUserPermission, documentId);
+
+        if (request.role() == DocumentRole.OWNER) {
+            throw new DocumentValidationException("Use EDITOR or VIEWER when sharing a document.");
+        }
+
+        AppUser targetUser = appUserService.findOrCreateByEmail(request.email());
+        Document document = currentUserPermission.getDocument();
+
+        DocumentPermission permission = documentPermissionRepository
+                .findByDocumentIdAndUser(documentId, targetUser)
+                .orElseGet(() -> new DocumentPermission(document, targetUser, request.role()));
+
+        if (permission.isOwner()) {
+            throw new DocumentValidationException("Cannot change the document owner role.");
+        }
+
+        permission.changeRole(request.role());
+
+        DocumentPermission savedPermission = documentPermissionRepository.save(permission);
+
+        return DocumentPermissionResponse.from(savedPermission);
+    }
+
+    @Transactional
+    public void removePermission(
+            UUID documentId,
+            UUID permissionId,
+            String userEmail
+    ) {
+        DocumentPermission currentUserPermission = findPermissionOrThrow(documentId, userEmail);
+        requireOwner(currentUserPermission, documentId);
+
+        DocumentPermission permissionToRemove = documentPermissionRepository.findById(permissionId)
+                .orElseThrow(() -> new DocumentNotFoundException(documentId));
+
+        if (!permissionToRemove.getDocument().getId().equals(documentId)) {
+            throw new DocumentNotFoundException(documentId);
+        }
+
+        if (permissionToRemove.isOwner()) {
+            throw new DocumentValidationException("Cannot remove the document owner.");
+        }
+
+        documentPermissionRepository.delete(permissionToRemove);
+    }
+
     private DocumentPermission findPermissionOrThrow(UUID documentId, String userEmail) {
         AppUser user = appUserService.findOrCreateByEmail(userEmail);
 

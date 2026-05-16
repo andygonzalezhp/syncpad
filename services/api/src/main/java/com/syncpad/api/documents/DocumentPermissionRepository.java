@@ -30,4 +30,21 @@ public interface DocumentPermissionRepository extends JpaRepository<DocumentPerm
             @Param("documentId") UUID documentId,
             @Param("user") AppUser user
     );
+
+    @Query("""
+           SELECT permission
+           FROM DocumentPermission permission
+           JOIN FETCH permission.user
+           WHERE permission.document.id = :documentId
+           ORDER BY
+             CASE permission.role
+               WHEN com.syncpad.api.documents.DocumentRole.OWNER THEN 0
+               WHEN com.syncpad.api.documents.DocumentRole.EDITOR THEN 1
+               ELSE 2
+             END,
+             permission.createdAt ASC
+           """)
+    List<DocumentPermission> findAllByDocumentIdWithUser(
+            @Param("documentId") UUID documentId
+    );
 }

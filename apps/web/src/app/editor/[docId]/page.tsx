@@ -1,4 +1,5 @@
 import CollaborativeRoom from "@/components/collab/CollaborativeRoom";
+import SharePanel from "@/components/documents/SharePanel";
 import EditorHeader from "@/components/editor/EditorHeader";
 import { getDocument } from "@/lib/api";
 import { notFound } from "next/navigation";
@@ -24,6 +25,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-neutral-100">
       <div className="mx-auto max-w-5xl">
         <EditorHeader docId={docId} initialTitle={document.title} />
+        <SharePanel documentId={docId} currentUserRole={document.role} />
         <CollaborativeRoom docId={docId} />
       </div>
     </main>

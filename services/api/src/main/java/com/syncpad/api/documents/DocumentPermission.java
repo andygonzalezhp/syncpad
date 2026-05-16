@@ -61,7 +61,15 @@ public class DocumentPermission {
         return role;
     }
 
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
     public boolean isOwner() {
         return role == DocumentRole.OWNER;
+    }
+
+    public void changeRole(DocumentRole role) {
+        this.role = role;
     }
 }

@@ -60,4 +60,32 @@ public class DocumentController {
     ) {
         documentService.deleteDocument(id, userEmail);
     }
+
+    @GetMapping("/{id}/permissions")
+    public List<DocumentPermissionResponse> listPermissions(
+            @PathVariable UUID id,
+            @RequestHeader(value = "X-User-Email", defaultValue = DEFAULT_DEV_USER) String userEmail
+    ) {
+        return documentService.listPermissions(id, userEmail);
+    }
+
+    @PostMapping("/{id}/permissions")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DocumentPermissionResponse shareDocument(
+            @PathVariable UUID id,
+            @Valid @RequestBody ShareDocumentRequest request,
+            @RequestHeader(value = "X-User-Email", defaultValue = DEFAULT_DEV_USER) String userEmail
+    ) {
+        return documentService.shareDocument(id, request, userEmail);
+    }
+
+    @DeleteMapping("/{id}/permissions/{permissionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removePermission(
+            @PathVariable UUID id,
+            @PathVariable UUID permissionId,
+            @RequestHeader(value = "X-User-Email", defaultValue = DEFAULT_DEV_USER) String userEmail
+    ) {
+        documentService.removePermission(id, permissionId, userEmail);
+    }
 }
