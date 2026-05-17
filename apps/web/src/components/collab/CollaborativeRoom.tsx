@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import {
   HocuspocusProviderWebsocketComponent,
   HocuspocusRoom,
 } from "@hocuspocus/provider-react";
 import CollaborativeEditor from "./CollaborativeEditor";
-import {
-  DEV_USER_EMAIL,
-  displayNameFromEmail,
-  DocumentRole,
-} from "@/lib/api";
+import { displayNameFromEmail, DocumentRole } from "@/lib/api";
 
 type CollaborativeRoomProps = {
   docId: string;
@@ -24,35 +21,51 @@ export default function CollaborativeRoom({
   docId,
   currentUserRole,
 }: CollaborativeRoomProps) {
+  const { user, isLoaded } = useUser();
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const authToken = useMemo(
-    () =>
-      JSON.stringify({
-        email: DEV_USER_EMAIL,
-      }),
-    [],
-  );
+  const email = user?.primaryEmailAddress?.emailAddress;
+
+  const authToken = useMemo(() => {
+    if (!email) {
+      return "";
+    }
+
+    return JSON.stringify({ email });
+  }, [email]);
 
   const collabUrlWithToken = useMemo(() => {
     const url = new URL(COLLAB_URL);
-    url.searchParams.set("token", authToken);
+
+    if (authToken) {
+      url.searchParams.set("token", authToken);
+    }
+
     return url.toString();
   }, [authToken]);
 
-  const currentUser = useMemo(
-    () => ({
-      email: DEV_USER_EMAIL,
-      name: displayNameFromEmail(DEV_USER_EMAIL),
-      color: colorFromEmail(DEV_USER_EMAIL),
+  const currentUser = useMemo(() => {
+    const normalizedEmail = email ?? "unknown@syncpad.dev";
+
+    return {
+      email: normalizedEmail,
+      name: user?.fullName || displayNameFromEmail(normalizedEmail),
+      color: colorFromEmail(normalizedEmail),
       role: currentUserRole,
-    }),
-    [currentUserRole],
-  );
+    };
+  }, [email, user?.fullName, currentUserRole]);
 
   useEffect(() => {
     setAuthError(null);
-  }, [docId, currentUserRole]);
+  }, [docId, currentUserRole, email]);
+
+  if (!isLoaded || !email || !authToken) {
+    return (
+      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300">
+        Loading collaboration session...
+      </section>
+    );
+  }
 
   if (authError) {
     return (
@@ -66,7 +79,7 @@ export default function CollaborativeRoom({
   return (
     <HocuspocusProviderWebsocketComponent url={collabUrlWithToken}>
       <HocuspocusRoom
-        key={`${docId}-${DEV_USER_EMAIL}-${currentUserRole}`}
+        key={`${docId}-${email}-${currentUserRole}`}
         name={docId}
         token={authToken}
         onAuthenticated={() => {

@@ -1,13 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import {
-  DocumentPermission,
-  DocumentRole,
-  listDocumentPermissions,
-  removeDocumentPermission,
-  shareDocument,
-} from "@/lib/api";
+import { DocumentPermission, DocumentRole } from "@/lib/api";
+import { useSyncPadApi } from "@/lib/useSyncPadApi";
 
 type SharePanelProps = {
   documentId: string;
@@ -18,6 +13,13 @@ export default function SharePanel({
   documentId,
   currentUserRole,
 }: SharePanelProps) {
+  const {
+    isAuthReady,
+    listDocumentPermissions,
+    removeDocumentPermission,
+    shareDocument,
+  } = useSyncPadApi();
+
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Exclude<DocumentRole, "OWNER">>("EDITOR");
   const [permissions, setPermissions] = useState<DocumentPermission[]>([]);
@@ -28,12 +30,14 @@ export default function SharePanel({
   const isOwner = currentUserRole === "OWNER";
 
   async function loadPermissions() {
-    if (!isOwner) {
+    if (!isOwner || !isAuthReady) {
       return;
     }
 
     try {
+      setIsLoading(true);
       setError(null);
+
       const data = await listDocumentPermissions(documentId);
       setPermissions(data);
     } catch {
@@ -46,7 +50,7 @@ export default function SharePanel({
   useEffect(() => {
     loadPermissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentId, isOwner]);
+  }, [documentId, isOwner, isAuthReady]);
 
   async function handleShare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,6 +97,7 @@ export default function SharePanel({
 
     try {
       setError(null);
+
       await removeDocumentPermission(documentId, permissionId);
 
       setPermissions((current) =>
@@ -105,6 +110,14 @@ export default function SharePanel({
 
   if (!isOwner) {
     return null;
+  }
+
+  if (!isAuthReady) {
+    return (
+      <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/70 p-4 text-neutral-300 shadow-2xl">
+        Loading sharing settings...
+      </section>
+    );
   }
 
   return (
@@ -160,7 +173,9 @@ export default function SharePanel({
         </h3>
 
         {isLoading ? (
-          <p className="mt-3 text-sm text-neutral-500">Loading collaborators...</p>
+          <p className="mt-3 text-sm text-neutral-500">
+            Loading collaborators...
+          </p>
         ) : permissions.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">
             No collaborators yet.

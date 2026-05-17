@@ -1,9 +1,12 @@
+import AuthBar from "@/components/auth/AuthBar";
 import DocumentDashboard from "@/components/documents/DocumentDashboard";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-12 text-neutral-100">
       <section className="mx-auto mb-10 max-w-4xl">
+        <AuthBar />
+
         <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
           SyncPad
         </p>

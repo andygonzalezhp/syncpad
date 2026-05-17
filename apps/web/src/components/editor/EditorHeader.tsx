@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { DocumentRole, renameDocument } from "@/lib/api";
+import { DocumentRole } from "@/lib/api";
+import { useSyncPadApi } from "@/lib/useSyncPadApi";
 
 type EditorHeaderProps = {
   docId: string;
@@ -19,6 +20,7 @@ export default function EditorHeader({
   const [savedTitle, setSavedTitle] = useState(initialTitle);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const { renameDocument } = useSyncPadApi();
 
   const canRename = currentUserRole === "OWNER";
   const hasUnsavedTitle = title.trim() !== savedTitle;

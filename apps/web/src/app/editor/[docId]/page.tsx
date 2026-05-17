@@ -1,7 +1,7 @@
 import CollaborativeRoom from "@/components/collab/CollaborativeRoom";
 import SharePanel from "@/components/documents/SharePanel";
 import EditorHeader from "@/components/editor/EditorHeader";
-import { getDocument } from "@/lib/api";
+import { getDocument } from "@/lib/serverApi";
 import { notFound } from "next/navigation";
 
 type EditorPageProps = {

@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  createDocument,
-  deleteDocument,
-  DocumentSummary,
-  listDocuments,
-} from "@/lib/api";
+import { DocumentSummary } from "@/lib/api";
+import { useSyncPadApi } from "@/lib/useSyncPadApi";
 
 export default function DocumentDashboard() {
   const router = useRouter();
+
+  const {
+    isAuthReady,
+    listDocuments,
+    createDocument,
+    deleteDocument,
+  } = useSyncPadApi();
 
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [title, setTitle] = useState("Untitled document");
@@ -21,8 +24,8 @@ export default function DocumentDashboard() {
 
   async function loadDocuments() {
     try {
-      setError(null);
       setIsLoading(true);
+      setError(null);
 
       const data = await listDocuments();
       setDocuments(data);
@@ -34,8 +37,13 @@ export default function DocumentDashboard() {
   }
 
   useEffect(() => {
+    if (!isAuthReady) {
+      return;
+    }
+
     loadDocuments();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthReady]);
 
   async function handleCreateDocument(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,6 +89,16 @@ export default function DocumentDashboard() {
     }
   }
 
+  if (!isAuthReady) {
+    return (
+      <section className="mx-auto w-full max-w-4xl">
+        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300 shadow-2xl">
+          Loading authenticated workspace...
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mx-auto w-full max-w-4xl">
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 shadow-2xl">
@@ -118,7 +136,8 @@ export default function DocumentDashboard() {
 
             {!isLoading && documents.length > 0 && (
               <p className="text-sm text-neutral-500">
-                {documents.length} {documents.length === 1 ? "document" : "documents"}
+                {documents.length}{" "}
+                {documents.length === 1 ? "document" : "documents"}
               </p>
             )}
           </div>
