@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import {
   HocuspocusProviderWebsocketComponent,
   HocuspocusRoom,
@@ -21,28 +21,60 @@ export default function CollaborativeRoom({
   docId,
   currentUserRole,
 }: CollaborativeRoomProps) {
+  const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
+
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const email = user?.primaryEmailAddress?.emailAddress;
 
-  const authToken = useMemo(() => {
-    if (!email) {
-      return "";
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadToken() {
+      if (!isLoaded || !email) {
+        return;
+      }
+
+      try {
+        setAuthError(null);
+        setJwtToken(null);
+
+        const token = await getToken({
+          template: "syncpad",
+        });
+
+        if (!token) {
+          throw new Error("Could not create SyncPad collaboration token.");
+        }
+
+        if (!cancelled) {
+          setJwtToken(token);
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthError("Could not create collaboration token.");
+        }
+      }
     }
 
-    return JSON.stringify({ email });
-  }, [email]);
+    loadToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, email, docId]);
 
   const collabUrlWithToken = useMemo(() => {
     const url = new URL(COLLAB_URL);
 
-    if (authToken) {
-      url.searchParams.set("token", authToken);
+    if (jwtToken) {
+      url.searchParams.set("token", jwtToken);
     }
 
     return url.toString();
-  }, [authToken]);
+  }, [jwtToken]);
 
   const currentUser = useMemo(() => {
     const normalizedEmail = email ?? "unknown@syncpad.dev";
@@ -59,10 +91,10 @@ export default function CollaborativeRoom({
     setAuthError(null);
   }, [docId, currentUserRole, email]);
 
-  if (!isLoaded || !email || !authToken) {
+  if (!isLoaded || !email || !jwtToken) {
     return (
-      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300">
-        Loading collaboration session...
+      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300 shadow-2xl">
+        Loading secure collaboration session...
       </section>
     );
   }
@@ -79,9 +111,9 @@ export default function CollaborativeRoom({
   return (
     <HocuspocusProviderWebsocketComponent url={collabUrlWithToken}>
       <HocuspocusRoom
-        key={`${docId}-${email}-${currentUserRole}`}
+        key={`${docId}-${email}-${currentUserRole}-${jwtToken.slice(0, 12)}`}
         name={docId}
-        token={authToken}
+        token={jwtToken}
         onAuthenticated={() => {
           setAuthError(null);
         }}

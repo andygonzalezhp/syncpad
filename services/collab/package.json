@@ -12,8 +12,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@clerk/backend": "^3.4.9",
     "@hocuspocus/extension-database": "^4.0.0",
     "@hocuspocus/server": "^4.0.0",
+    "dotenv": "^17.4.2",
     "pg": "^8.20.0",
     "yjs": "^13.6.30"
   },

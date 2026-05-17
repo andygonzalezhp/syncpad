@@ -1,3 +1,6 @@
+import "dotenv/config";
+
+import { verifyToken } from "@clerk/backend";
 import { Server } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
 import pg from "pg";
@@ -6,10 +9,6 @@ const { Pool } = pg;
 
 type DocumentRole = "OWNER" | "EDITOR" | "VIEWER";
 
-type AuthToken = {
-  email?: string;
-};
-
 type CollabUserContext = {
   user: {
     id: string;
@@ -17,6 +16,12 @@ type CollabUserContext = {
     name: string;
     role: DocumentRole;
   };
+};
+
+type ClerkClaims = {
+  sub?: string;
+  email?: string;
+  name?: string | null;
 };
 
 type RuntimeAuthenticatePayload = {
@@ -33,6 +38,12 @@ const port = Number(process.env.PORT ?? 1234);
 const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://syncpad:syncpad@localhost:5432/syncpad";
+
+const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+if (!clerkSecretKey) {
+  throw new Error("Missing CLERK_SECRET_KEY for collab server.");
+}
 
 const pool = new Pool({
   connectionString: databaseUrl,
@@ -67,79 +78,64 @@ function getDocumentName(data: RuntimeAuthenticatePayload): string {
   );
 }
 
-function getToken(data: RuntimeAuthenticatePayload): unknown {
-  if (data.token !== undefined && data.token !== null) {
-    return data.token;
+function getRawToken(data: RuntimeAuthenticatePayload): string {
+  if (typeof data.token === "string" && data.token.trim()) {
+    return data.token.trim();
   }
 
   const params = data.requestParameters;
 
   if (params instanceof URLSearchParams) {
-    return params.get("token");
-  }
+    const token = params.get("token");
 
-  if (params instanceof Map) {
-    return params.get("token");
-  }
-
-  if (params && typeof params === "object" && "token" in params) {
-    return params.token;
-  }
-
-  return undefined;
-}
-
-function parseAuthToken(rawToken: unknown): AuthToken {
-  if (!rawToken) {
-    throw new Error("Missing collaboration auth token.");
-  }
-
-  if (typeof rawToken === "object") {
-    const token = rawToken as AuthToken;
-
-    if (token.email) {
+    if (token) {
       return token;
     }
   }
 
-  if (typeof rawToken !== "string") {
-    throw new Error("Invalid collaboration auth token type.");
-  }
+  if (params instanceof Map) {
+    const token = params.get("token");
 
-  const trimmedToken = rawToken.trim();
-
-  if (!trimmedToken) {
-    throw new Error("Empty collaboration auth token.");
-  }
-
-  // Preferred format from the frontend:
-  // JSON.stringify({ email: "andy@syncpad.dev" })
-  try {
-    const parsed = JSON.parse(trimmedToken) as AuthToken;
-
-    if (parsed.email) {
-      return parsed;
+    if (token) {
+      return token;
     }
-  } catch {
-    // Fall through to plain email support below.
   }
 
-  // Fallback support:
-  // token="andy@syncpad.dev"
-  if (trimmedToken.includes("@")) {
-    return {
-      email: trimmedToken,
-    };
+  if (
+    params &&
+    typeof params === "object" &&
+    "token" in params &&
+    typeof params.token === "string" &&
+    params.token.trim()
+  ) {
+    return params.token.trim();
   }
 
-  throw new Error("Invalid collaboration auth token.");
+  throw new Error("Missing collaboration auth token.");
+}
+
+async function verifyClerkJwt(rawToken: string): Promise<ClerkClaims> {
+  const claims = await verifyToken(rawToken, {
+    secretKey: clerkSecretKey,
+  });
+
+  return claims as ClerkClaims;
+}
+
+function getEmailFromClaims(claims: ClerkClaims): string {
+  if (!claims.email) {
+    throw new Error(
+      "Verified Clerk token is missing email claim. Check the syncpad JWT template.",
+    );
+  }
+
+  return normalizeEmail(claims.email);
 }
 
 const server = new Server({
   name: "syncpad-collab",
   port,
 
-  // Debounce persistence writes so we do not hit Postgres on every keystroke.
   debounce: 2000,
   maxDebounce: 10000,
 
@@ -153,18 +149,14 @@ const server = new Server({
         throw new Error(`Invalid document room: ${documentName}`);
       }
 
-      const rawToken = getToken(authData);
-      const parsedToken = parseAuthToken(rawToken);
-
-      if (!parsedToken.email) {
-        throw new Error("Missing user email.");
-      }
-
-      const email = normalizeEmail(parsedToken.email);
+      const rawToken = getRawToken(authData);
+      const claims = await verifyClerkJwt(rawToken);
+      const email = getEmailFromClaims(claims);
 
       console.log("[auth:start]", {
         documentName,
         email,
+        subject: claims.sub,
         hasConnection: Boolean(authData.connection),
         payloadKeys: displayDebugKeys(authData),
       });
@@ -307,4 +299,4 @@ async function shutdown() {
 }
 
 process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);  
+process.on("SIGTERM", shutdown);
