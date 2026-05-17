@@ -1,12 +1,12 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import {
   API_URL,
+  bearerHeaders,
   DocumentPermission,
   DocumentRole,
   DocumentSummary,
-  userHeaders,
 } from "@/lib/api";
 
 function getBestEmail(user: ReturnType<typeof useUser>["user"]): string | null {
@@ -17,26 +17,32 @@ function getBestEmail(user: ReturnType<typeof useUser>["user"]): string | null {
   );
 }
 
-function requireEmail(email: string | null): string {
-  if (!email) {
-    throw new Error("Authenticated user email is not ready yet.");
-  }
-
-  return email;
-}
-
 export function useSyncPadApi() {
+  const { getToken } = useAuth();
   const { user, isLoaded, isSignedIn } = useUser();
 
   const currentUserEmail = getBestEmail(user);
   const isAuthReady = isLoaded && Boolean(isSignedIn) && Boolean(currentUserEmail);
 
-  async function listDocuments(): Promise<DocumentSummary[]> {
-    const email = requireEmail(currentUserEmail);
+  async function getApiHeaders(extraHeaders?: HeadersInit): Promise<HeadersInit> {
+    const token = await getToken({
+      template: "syncpad",
+    });
 
+    if (!token) {
+      throw new Error("Could not create SyncPad API token.");
+    }
+
+    return {
+      ...bearerHeaders(token),
+      ...extraHeaders,
+    };
+  }
+
+  async function listDocuments(): Promise<DocumentSummary[]> {
     const response = await fetch(`${API_URL}/api/documents`, {
       cache: "no-store",
-      headers: userHeaders(email),
+      headers: await getApiHeaders(),
     });
 
     if (!response.ok) {
@@ -47,14 +53,11 @@ export function useSyncPadApi() {
   }
 
   async function createDocument(title: string): Promise<DocumentSummary> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(`${API_URL}/api/documents`, {
       method: "POST",
-      headers: {
-        ...userHeaders(email),
+      headers: await getApiHeaders({
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify({ title }),
     });
 
@@ -69,14 +72,11 @@ export function useSyncPadApi() {
     id: string,
     title: string,
   ): Promise<DocumentSummary> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(`${API_URL}/api/documents/${id}`, {
       method: "PATCH",
-      headers: {
-        ...userHeaders(email),
+      headers: await getApiHeaders({
         "Content-Type": "application/json",
-      },
+      }),
       body: JSON.stringify({ title }),
     });
 
@@ -88,11 +88,9 @@ export function useSyncPadApi() {
   }
 
   async function deleteDocument(id: string): Promise<void> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(`${API_URL}/api/documents/${id}`, {
       method: "DELETE",
-      headers: userHeaders(email),
+      headers: await getApiHeaders(),
     });
 
     if (!response.ok) {
@@ -103,13 +101,11 @@ export function useSyncPadApi() {
   async function listDocumentPermissions(
     documentId: string,
   ): Promise<DocumentPermission[]> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(
       `${API_URL}/api/documents/${documentId}/permissions`,
       {
         cache: "no-store",
-        headers: userHeaders(email),
+        headers: await getApiHeaders(),
       },
     );
 
@@ -125,16 +121,13 @@ export function useSyncPadApi() {
     targetEmail: string,
     role: Exclude<DocumentRole, "OWNER">,
   ): Promise<DocumentPermission> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(
       `${API_URL}/api/documents/${documentId}/permissions`,
       {
         method: "POST",
-        headers: {
-          ...userHeaders(email),
+        headers: await getApiHeaders({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({ email: targetEmail, role }),
       },
     );
@@ -150,13 +143,11 @@ export function useSyncPadApi() {
     documentId: string,
     permissionId: string,
   ): Promise<void> {
-    const email = requireEmail(currentUserEmail);
-
     const response = await fetch(
       `${API_URL}/api/documents/${documentId}/permissions/${permissionId}`,
       {
         method: "DELETE",
-        headers: userHeaders(email),
+        headers: await getApiHeaders(),
       },
     );
 

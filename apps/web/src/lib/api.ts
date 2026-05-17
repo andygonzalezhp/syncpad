@@ -29,8 +29,8 @@ export function displayNameFromEmail(email: string): string {
   return localPart.charAt(0).toUpperCase() + localPart.slice(1);
 }
 
-export function userHeaders(email: string): HeadersInit {
+export function bearerHeaders(token: string): HeadersInit {
   return {
-    "X-User-Email": email,
+    Authorization: `Bearer ${token}`,
   };
 }

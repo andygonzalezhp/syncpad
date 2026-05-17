@@ -1,23 +1,26 @@
-import { currentUser } from "@clerk/nextjs/server";
-import { API_URL, DocumentSummary, userHeaders } from "@/lib/api";
+import { auth } from "@clerk/nextjs/server";
+import { API_URL, bearerHeaders, DocumentSummary } from "@/lib/api";
 
-async function getCurrentUserEmail(): Promise<string> {
-  const user = await currentUser();
-  const email = user?.primaryEmailAddress?.emailAddress;
+async function getApiToken(): Promise<string> {
+  const { getToken } = await auth();
 
-  if (!email) {
-    throw new Error("Missing authenticated user email.");
+  const token = await getToken({
+    template: "syncpad",
+  });
+
+  if (!token) {
+    throw new Error("Could not create SyncPad API token.");
   }
 
-  return email;
+  return token;
 }
 
 export async function getDocument(id: string): Promise<DocumentSummary> {
-  const email = await getCurrentUserEmail();
+  const token = await getApiToken();
 
   const response = await fetch(`${API_URL}/api/documents/${id}`, {
     cache: "no-store",
-    headers: userHeaders(email),
+    headers: bearerHeaders(token),
   });
 
   if (!response.ok) {
