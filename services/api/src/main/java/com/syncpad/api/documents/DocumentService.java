@@ -1,8 +1,10 @@
 package com.syncpad.api.documents;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +31,7 @@ public class DocumentService {
 
     @Transactional
     public DocumentResponse createDocument(CreateDocumentRequest request, String userEmail) {
-        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+        AppUser user = appUserService.findOrCreateByEmail(normalizeEmail(userEmail));
 
         Document document = new Document(request.title().trim());
         Document savedDocument = documentRepository.save(document);
@@ -47,7 +49,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public List<DocumentResponse> listDocuments(String userEmail) {
-        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+        AppUser user = appUserService.findOrCreateByEmail(normalizeEmail(userEmail));
 
         return documentPermissionRepository.findAllByUserWithDocument(user)
                 .stream()
@@ -84,16 +86,50 @@ public class DocumentService {
     }
 
     @Transactional
-    public void deleteDocument(UUID id, String userEmail) {
-        DocumentPermission permission = findPermissionOrThrow(id, userEmail);
-        requireOwner(permission, id);
+    public void deleteDocument(UUID documentId, String userEmail) {
+        String normalizedEmail = normalizeEmail(userEmail);
 
+        if (!documentRepository.existsById(documentId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Document not found"
+            );
+        }
+
+        DocumentRole currentUserRole = documentPermissionRepository
+                .findRoleByDocumentIdAndUserEmail(documentId, normalizedEmail)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Document not found"
+                ));
+
+        if (currentUserRole != DocumentRole.OWNER) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only the owner can delete this document"
+            );
+        }
+
+        /*
+         * Delete using direct SQL instead of JPA entity deletes.
+         *
+         * This avoids Hibernate transient-reference flush issues when deleting
+         * DocumentPermission rows that point to the same Document being removed.
+         */
         jdbcTemplate.update(
                 "DELETE FROM document_states WHERE document_name = ?",
-                id.toString()
+                documentId.toString()
         );
 
-        documentRepository.delete(permission.getDocument());
+        jdbcTemplate.update(
+                "DELETE FROM document_permissions WHERE document_id = ?",
+                documentId
+        );
+
+        jdbcTemplate.update(
+                "DELETE FROM documents WHERE id = ?",
+                documentId
+        );
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +156,10 @@ public class DocumentService {
             throw new DocumentValidationException("Use EDITOR or VIEWER when sharing a document.");
         }
 
-        AppUser targetUser = appUserService.findOrCreateByEmail(request.email());
+        AppUser targetUser = appUserService.findOrCreateByEmail(
+                normalizeEmail(request.email())
+        );
+
         Document document = currentUserPermission.getDocument();
 
         DocumentPermission permission = documentPermissionRepository
@@ -162,7 +201,7 @@ public class DocumentService {
     }
 
     private DocumentPermission findPermissionOrThrow(UUID documentId, String userEmail) {
-        AppUser user = appUserService.findOrCreateByEmail(userEmail);
+        AppUser user = appUserService.findOrCreateByEmail(normalizeEmail(userEmail));
 
         return documentPermissionRepository.findByDocumentIdAndUser(documentId, user)
                 .orElseThrow(() -> new DocumentNotFoundException(documentId));
@@ -172,5 +211,16 @@ public class DocumentService {
         if (!permission.isOwner()) {
             throw new DocumentAccessDeniedException(documentId);
         }
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authenticated user email is required"
+            );
+        }
+
+        return email.trim().toLowerCase();
     }
 }

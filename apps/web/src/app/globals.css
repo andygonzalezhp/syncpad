@@ -5,18 +5,9 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
 }
 
 body {
@@ -25,71 +16,205 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-.ProseMirror {
-  min-height: 500px;
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
-.ProseMirror p.is-editor-empty:first-child::before {
-  color: #737373;
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
+.syncpad-editor {
+  background: white;
+  font-family: Arial, sans-serif;
+  letter-spacing: -0.002em;
 }
 
-.ProseMirror h1 {
-  font-size: 2rem;
+.syncpad-editor h1 {
+  font-size: 26pt;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.18;
+  margin: 1.1em 0 0.45em;
 }
 
-.ProseMirror h2 {
-  font-size: 1.5rem;
-  font-weight: 650;
-  line-height: 1.2;
+.syncpad-editor h2 {
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.22;
+  margin: 1em 0 0.4em;
 }
 
-.ProseMirror ul {
-  list-style-type: disc;
-  padding-left: 1.5rem;
+.syncpad-editor h3 {
+  font-size: 14pt;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0.95em 0 0.35em;
 }
 
-.ProseMirror ol {
-  list-style-type: decimal;
-  padding-left: 1.5rem;
+.syncpad-editor p {
+  margin: 0.55em 0;
 }
 
-.ProseMirror li {
-  margin: 0.25rem 0;
+.syncpad-editor ul,
+.syncpad-editor ol {
+  margin: 0.65em 0;
+  padding-left: 1.7rem;
+}
+
+.syncpad-editor li {
+  margin: 0.2em 0;
+}
+
+.syncpad-editor blockquote {
+  border-left: 4px solid #dadce0;
+  color: #5f6368;
+  font-style: italic;
+  margin: 1rem 0;
+  padding-left: 1rem;
+}
+
+.syncpad-editor code {
+  background: #f1f3f4;
+  border: 1px solid #dadce0;
+  border-radius: 0.35rem;
+  font-size: 0.88em;
+  padding: 0.1rem 0.3rem;
+}
+
+.syncpad-editor pre {
+  background: #202124;
+  border-radius: 0.75rem;
+  color: #f8f9fa;
+  margin: 1rem 0;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.syncpad-editor pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0;
+}
+
+.syncpad-editor a {
+  color: #1a73e8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.syncpad-editor hr {
+  border: 0;
+  border-top: 1px solid #dadce0;
+  margin: 1.8rem 0;
+}
+
+.syncpad-editor img {
+  border-radius: 0.35rem;
+}
+
+.syncpad-editor table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.syncpad-editor th,
+.syncpad-editor td {
+  border: 1px solid #dadce0;
+  min-width: 1em;
+  padding: 0.5rem;
+  position: relative;
+  vertical-align: top;
+}
+
+.syncpad-editor th {
+  background: #f8f9fa;
+  font-weight: 700;
+}
+
+.syncpad-editor .selectedCell::after {
+  background: rgba(26, 115, 232, 0.12);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.syncpad-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.syncpad-editor ul[data-type="taskList"] li {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.syncpad-editor ul[data-type="taskList"] li > label {
+  margin-top: 0.15rem;
+}
+
+.syncpad-editor ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.syncpad-image {
+  display: block;
+  height: auto;
+  margin: 1rem auto;
+  max-width: 100%;
 }
 
 .collaboration-carets__caret {
-  position: relative;
-  margin-left: -1px;
-  margin-right: -1px;
   border-left: 1px solid currentColor;
   border-right: 1px solid currentColor;
-  word-break: normal;
+  margin-left: -1px;
+  margin-right: -1px;
   pointer-events: none;
+  position: relative;
+  word-break: normal;
 }
 
 .collaboration-carets__label {
-  position: absolute;
-  top: -1.35em;
-  left: -1px;
+  border-radius: 4px 4px 4px 0;
+  color: white;
   font-size: 12px;
   font-weight: 600;
+  left: -1px;
   line-height: 1;
-  user-select: none;
-  color: white;
   padding: 2px 6px;
-  border-radius: 4px 4px 4px 0;
+  position: absolute;
+  top: -1.35em;
+  user-select: none;
   white-space: nowrap;
-  background: currentColor;
 }
 
 .collaboration-carets__selection {
-  background-color: currentColor;
   opacity: 0.25;
   pointer-events: none;
+}
+
+::selection {
+  background: rgba(26, 115, 232, 0.22);
+}
+
+@media print {
+  body {
+    background: white;
+  }
+
+  header,
+  .sticky,
+  aside,
+  #sharing-panel {
+    display: none !important;
+  }
+
+  .syncpad-editor {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
 }

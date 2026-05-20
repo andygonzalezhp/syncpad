@@ -114,30 +114,45 @@ export default function SharePanel({
 
   if (!isAuthReady) {
     return (
-      <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/70 p-4 text-neutral-300 shadow-2xl">
+      <section className="mb-6 rounded-3xl border border-stone-300 bg-white p-5 text-neutral-500 shadow-sm">
         Loading sharing settings...
       </section>
     );
   }
 
   return (
-    <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/70 p-4 shadow-2xl">
-      <div className="mb-4">
-        <h2 className="text-sm font-medium uppercase tracking-[0.25em] text-neutral-500">
-          Sharing
-        </h2>
+    <section className="mb-6 rounded-3xl border border-stone-300 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500">
+            Sharing
+          </p>
 
-        <p className="mt-2 text-sm text-neutral-400">
-          Invite collaborators by email and assign document access.
-        </p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-neutral-950">
+            Invite collaborators
+          </h2>
+
+          <p className="mt-1 text-sm text-neutral-500">
+            Share this document by email and control whether someone can edit or
+            only view.
+          </p>
+        </div>
+
+        <div className="text-sm text-stone-500">
+          {permissions.length}{" "}
+          {permissions.length === 1 ? "collaborator" : "collaborators"}
+        </div>
       </div>
 
-      <form onSubmit={handleShare} className="flex flex-col gap-3 md:flex-row">
+      <form
+        onSubmit={handleShare}
+        className="grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 md:grid-cols-[minmax(0,1fr)_180px_130px]"
+      >
         <input
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="min-h-12 flex-1 rounded-2xl border border-neutral-700 bg-neutral-950 px-4 text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-neutral-400"
+          className="min-h-12 rounded-2xl border border-stone-300 bg-white px-4 text-neutral-900 outline-none placeholder:text-stone-400 focus:border-neutral-500"
           placeholder="teammate@example.com"
         />
 
@@ -146,7 +161,7 @@ export default function SharePanel({
           onChange={(event) =>
             setRole(event.target.value as Exclude<DocumentRole, "OWNER">)
           }
-          className="min-h-12 rounded-2xl border border-neutral-700 bg-neutral-950 px-4 text-neutral-100 outline-none focus:border-neutral-400"
+          className="min-h-12 rounded-2xl border border-stone-300 bg-white px-4 text-neutral-900 outline-none focus:border-neutral-500"
         >
           <option value="EDITOR">Editor</option>
           <option value="VIEWER">Viewer</option>
@@ -155,50 +170,52 @@ export default function SharePanel({
         <button
           type="submit"
           disabled={isSharing}
-          className="min-h-12 rounded-2xl bg-white px-5 text-sm font-medium text-neutral-950 transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-12 rounded-2xl bg-neutral-950 px-5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSharing ? "Sharing..." : "Share"}
         </button>
       </form>
 
       {error && (
-        <p className="mt-4 rounded-2xl border border-red-900/70 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
       )}
 
-      <div className="mt-6">
-        <h3 className="text-sm font-medium text-neutral-300">
-          Collaborators
-        </h3>
-
+      <div className="mt-5">
         {isLoading ? (
-          <p className="mt-3 text-sm text-neutral-500">
-            Loading collaborators...
-          </p>
+          <p className="text-sm text-neutral-500">Loading collaborators...</p>
         ) : permissions.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
+          <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-5 text-sm text-neutral-500">
             No collaborators yet.
-          </p>
+          </div>
         ) : (
-          <div className="mt-3 grid gap-2">
+          <div className="grid gap-3">
             {permissions.map((permission) => (
               <div
                 key={permission.id}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-3"
+                className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-neutral-100">
+                  <p className="truncate text-sm font-semibold text-neutral-900">
                     {permission.displayName}
                   </p>
 
-                  <p className="truncate text-xs text-neutral-500">
+                  <p className="truncate text-sm text-neutral-500">
                     {permission.userEmail}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-neutral-700 px-2 py-1 text-xs text-neutral-400">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      permission.role === "OWNER"
+                        ? "bg-neutral-950 text-white"
+                        : permission.role === "EDITOR"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-stone-100 text-stone-700"
+                    }`}
+                  >
                     {permission.role}
                   </span>
 
@@ -206,7 +223,7 @@ export default function SharePanel({
                     <button
                       type="button"
                       onClick={() => handleRemove(permission.id)}
-                      className="rounded-xl border border-red-900/70 px-3 py-1.5 text-sm text-red-300 transition hover:bg-red-950/40"
+                      className="rounded-xl border border-red-300 px-3 py-1.5 text-sm text-red-600 transition hover:bg-red-50"
                     >
                       Remove
                     </button>

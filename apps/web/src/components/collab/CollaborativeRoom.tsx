@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
   HocuspocusProviderWebsocketComponent,
@@ -24,77 +24,58 @@ export default function CollaborativeRoom({
   const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
 
-  const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const email = user?.primaryEmailAddress?.emailAddress;
+  const email =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.emailAddresses?.[0]?.emailAddress ??
+    null;
 
-  useEffect(() => {
-    let cancelled = false;
+  const name =
+    user?.fullName?.trim() || (email ? displayNameFromEmail(email) : "User");
 
-    async function loadToken() {
-      if (!isLoaded || !email) {
-        return;
-      }
+  const tokenResolver = useCallback(async () => {
+    const token = await getToken({
+      template: "syncpad",
+    });
 
-      try {
-        setAuthError(null);
-        setJwtToken(null);
-
-        const token = await getToken({
-          template: "syncpad",
-        });
-
-        if (!token) {
-          throw new Error("Could not create SyncPad collaboration token.");
-        }
-
-        if (!cancelled) {
-          setJwtToken(token);
-        }
-      } catch {
-        if (!cancelled) {
-          setAuthError("Could not create collaboration token.");
-        }
-      }
+    if (!token) {
+      throw new Error("Could not create SyncPad collaboration token.");
     }
 
-    loadToken();
+    return token;
+  }, [getToken]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [getToken, isLoaded, email, docId]);
-
-  const collabUrlWithToken = useMemo(() => {
-    const url = new URL(COLLAB_URL);
-
-    if (jwtToken) {
-      url.searchParams.set("token", jwtToken);
-    }
-
-    return url.toString();
-  }, [jwtToken]);
-
-  const currentUser = useMemo(() => {
-    const normalizedEmail = email ?? "unknown@syncpad.dev";
-
-    return {
-      email: normalizedEmail,
-      name: user?.fullName || displayNameFromEmail(normalizedEmail),
-      color: colorFromEmail(normalizedEmail),
+  const currentUser = useMemo(
+    () => ({
+      email: email ?? "unknown@syncpad.dev",
+      name,
+      color: colorFromEmail(email ?? "unknown@syncpad.dev"),
       role: currentUserRole,
-    };
-  }, [email, user?.fullName, currentUserRole]);
+    }),
+    [email, name, currentUserRole],
+  );
 
   useEffect(() => {
     setAuthError(null);
-  }, [docId, currentUserRole, email]);
+  }, [docId, email, currentUserRole]);
 
-  if (!isLoaded || !email || !jwtToken) {
+  if (!isLoaded) {
     return (
       <section className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300 shadow-2xl">
-        Loading secure collaboration session...
+        Loading collaboration session...
+      </section>
+    );
+  }
+
+  if (!email) {
+    return (
+      <section className="rounded-3xl border border-red-900/70 bg-red-950/30 p-6 text-red-100">
+        <h2 className="text-lg font-semibold">Collaboration unavailable</h2>
+
+        <p className="mt-2 text-sm text-red-200">
+          Signed-in user is missing an email address.
+        </p>
       </section>
     );
   }
@@ -103,17 +84,18 @@ export default function CollaborativeRoom({
     return (
       <section className="rounded-3xl border border-red-900/70 bg-red-950/30 p-6 text-red-100">
         <h2 className="text-lg font-semibold">Collaboration unavailable</h2>
+
         <p className="mt-2 text-sm text-red-200">{authError}</p>
       </section>
     );
   }
 
   return (
-    <HocuspocusProviderWebsocketComponent url={collabUrlWithToken}>
+    <HocuspocusProviderWebsocketComponent url={COLLAB_URL}>
       <HocuspocusRoom
-        key={`${docId}-${email}-${currentUserRole}-${jwtToken.slice(0, 12)}`}
+        key={`${docId}-${email}-${currentUserRole}`}
         name={docId}
-        token={jwtToken}
+        token={tokenResolver}
         onAuthenticated={() => {
           setAuthError(null);
         }}
