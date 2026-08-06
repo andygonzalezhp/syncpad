@@ -10,6 +10,8 @@ export type CommentSyncEvent = {
   threadId: string;
 };
 
+export type CommentMutationRole = "OWNER" | "EDITOR" | "VIEWER";
+
 const commentSyncEventTypes = new Set<string>(COMMENT_SYNC_EVENT_TYPES);
 
 function isUuid(value: string): boolean {
@@ -44,4 +46,10 @@ export function parseCommentSyncEvent(payload: string): CommentSyncEvent | null 
   } catch {
     return null;
   }
+}
+
+export function canBroadcastCommentEvent(
+  role: unknown,
+): role is Exclude<CommentMutationRole, "VIEWER"> {
+  return role === "OWNER" || role === "EDITOR";
 }

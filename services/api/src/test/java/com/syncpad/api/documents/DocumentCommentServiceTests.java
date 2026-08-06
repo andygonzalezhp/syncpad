@@ -10,6 +10,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @Transactional
@@ -26,6 +27,9 @@ class DocumentCommentServiceTests {
 
     @Autowired
     private DocumentPermissionRepository documentPermissionRepository;
+
+    @Autowired
+    private DocumentService documentService;
 
     @Test
     void replyResolveAndReopenPersistCompleteThreadState() {
@@ -88,5 +92,85 @@ class DocumentCommentServiceTests {
         assertNull(reopened.resolvedBy());
         assertNull(reopened.resolvedAt());
         assertEquals(2, reopened.messages().size());
+    }
+
+    @Test
+    void editorCanMutateCommentsWhileViewerCanOnlyReadThem() {
+        String ownerEmail = "comment-owner-" + UUID.randomUUID() + "@syncpad.test";
+        String editorEmail = "comment-editor-" + UUID.randomUUID() + "@syncpad.test";
+        String viewerEmail = "comment-viewer-" + UUID.randomUUID() + "@syncpad.test";
+        DocumentResponse document = documentService.createDocument(
+                new CreateDocumentRequest("Role-protected comments"),
+                ownerEmail
+        );
+
+        documentService.shareDocument(
+                document.id(),
+                new ShareDocumentRequest(editorEmail, DocumentRole.EDITOR),
+                ownerEmail
+        );
+        documentService.shareDocument(
+                document.id(),
+                new ShareDocumentRequest(viewerEmail, DocumentRole.VIEWER),
+                ownerEmail
+        );
+
+        CommentThreadResponse created = documentCommentService.createComment(
+                document.id(),
+                new CreateCommentRequest("Selected", "Editor comment"),
+                editorEmail
+        );
+        CommentThreadResponse replied = documentCommentService.addReply(
+                document.id(),
+                created.id(),
+                new AddCommentReplyRequest("Editor reply"),
+                editorEmail
+        );
+
+        assertEquals(2, replied.messages().size());
+        assertEquals(1, documentCommentService.listComments(
+                document.id(),
+                viewerEmail
+        ).size());
+
+        assertThrows(
+                DocumentAccessDeniedException.class,
+                () -> documentCommentService.createComment(
+                        document.id(),
+                        new CreateCommentRequest("Selected", "Viewer comment"),
+                        viewerEmail
+                )
+        );
+        assertThrows(
+                DocumentAccessDeniedException.class,
+                () -> documentCommentService.addReply(
+                        document.id(),
+                        created.id(),
+                        new AddCommentReplyRequest("Viewer reply"),
+                        viewerEmail
+                )
+        );
+        assertThrows(
+                DocumentAccessDeniedException.class,
+                () -> documentCommentService.resolveComment(
+                        document.id(),
+                        created.id(),
+                        viewerEmail
+                )
+        );
+
+        CommentThreadResponse resolved = documentCommentService.resolveComment(
+                document.id(),
+                created.id(),
+                editorEmail
+        );
+        assertEquals(CommentStatus.RESOLVED, resolved.status());
+
+        CommentThreadResponse reopened = documentCommentService.reopenComment(
+                document.id(),
+                created.id(),
+                editorEmail
+        );
+        assertEquals(CommentStatus.OPEN, reopened.status());
     }
 }

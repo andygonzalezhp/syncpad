@@ -8,7 +8,10 @@ import {
 } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
 import pg, { type PoolClient } from "pg";
-import { parseCommentSyncEvent } from "./commentEvents.js";
+import {
+  canBroadcastCommentEvent,
+  parseCommentSyncEvent,
+} from "./commentEvents.js";
 
 const { Pool } = pg;
 
@@ -482,7 +485,7 @@ const server = new Server<CollabUserContext>({
 
     const role = authorization.rows[0]?.role as DocumentRole | undefined;
 
-    if (role !== "OWNER" && role !== "EDITOR") {
+    if (!canBroadcastCommentEvent(role)) {
       console.warn("[comment:event:ignored]", {
         documentName,
         threadId: event.threadId,

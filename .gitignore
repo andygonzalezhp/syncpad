@@ -25,6 +25,7 @@ yarn-error.log*
 .env.*.local
 application-local.properties
 application.properties
+!services/api/src/test/resources/application.properties
 
 # OS / editor
 .DS_Store
@@ -38,4 +39,3 @@ docker-data/
 # generated files
 dist/
 coverage/
-

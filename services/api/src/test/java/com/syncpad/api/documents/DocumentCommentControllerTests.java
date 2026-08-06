@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -29,6 +30,33 @@ class DocumentCommentControllerTests {
 
     @MockitoBean
     private DocumentCommentService documentCommentService;
+
+    @Test
+    void commentEndpointsRejectUnauthorizedRequests() throws Exception {
+        mockMvc.perform(get(
+                        "/api/documents/{documentId}/comments",
+                        UUID.randomUUID()
+                ))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(documentCommentService);
+    }
+
+    @Test
+    void addReplyRejectsBlankMessages() throws Exception {
+        mockMvc.perform(post(
+                        "/api/documents/{documentId}/comments/{threadId}/replies",
+                        UUID.randomUUID(),
+                        UUID.randomUUID()
+                )
+                        .with(jwt().jwt(jwt -> jwt.claim("email", USER_EMAIL)))
+                        .contentType("application/json")
+                        .content("{\"message\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        verifyNoInteractions(documentCommentService);
+    }
 
     @Test
     void getCommentReturnsOneAuthorizedThreadForRealtimeRefresh() throws Exception {
