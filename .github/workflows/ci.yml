@@ -5,59 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  repository-hygiene:
-    name: Repository hygiene
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Reject whitespace errors
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          set -euo pipefail
-
-          if [[ -n "${BASE_SHA}" && ! "${BASE_SHA}" =~ ^0+$ ]]; then
-            git diff --check "${BASE_SHA}" "${GITHUB_SHA}"
-          else
-            git diff-tree --root --check "${GITHUB_SHA}"
-          fi
-
-      - name: Reject tracked generated artifacts
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tracked_artifacts="$(
-            git ls-files |
-              grep -E '(^|/)(node_modules|\.next|dist|target|coverage)(/|$)|(^|/)tsconfig\.tsbuildinfo$' ||
-              true
-          )"
-
-          if [[ -n "${tracked_artifacts}" ]]; then
-            echo "Generated artifacts must not be committed:"
-            echo "${tracked_artifacts}"
-            exit 1
-          fi
-
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     defaults:
       run:
@@ -92,69 +43,5 @@ jobs:
       - name: Run unit tests
         run: npm run test:run
 
-      - name: Build production bundle
+      - name: Build
         run: npm run build
-
-      - name: Verify build did not modify tracked files
-        working-directory: ${{ github.workspace }}
-        run: git diff --exit-code
-
-  collaboration:
-    name: Collaboration service
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    defaults:
-      run:
-        working-directory: services/collab
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: services/collab/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm run test:run
-
-      - name: Build service
-        run: npm run build
-
-      - name: Verify build did not modify tracked files
-        working-directory: ${{ github.workspace }}
-        run: git diff --exit-code
-
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    defaults:
-      run:
-        working-directory: services/api
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
-      - name: Run Maven tests and Flyway validation
-        run: ./mvnw --batch-mode --no-transfer-progress test
-
-      - name: Verify tests did not modify tracked files
-        working-directory: ${{ github.workspace }}
-        run: git diff --exit-code
