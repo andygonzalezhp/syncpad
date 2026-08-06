@@ -73,7 +73,7 @@ export default function CollaborativeRoom({
 
   if (!isLoaded) {
     return (
-      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-6 text-neutral-300 shadow-2xl">
+      <section className="mx-auto mt-8 max-w-[900px] rounded-2xl bg-white p-6 text-[#777771] shadow-[0_1px_2px_rgba(20,20,18,0.04),0_16px_48px_rgba(20,20,18,0.06)] ring-1 ring-black/[0.05]">
         Loading collaboration session...
       </section>
     );
@@ -81,10 +81,10 @@ export default function CollaborativeRoom({
 
   if (!email) {
     return (
-      <section className="rounded-3xl border border-red-900/70 bg-red-950/30 p-6 text-red-100">
+      <section className="mx-auto mt-8 max-w-[900px] rounded-2xl bg-red-50 p-6 text-red-900 ring-1 ring-red-200">
         <h2 className="text-lg font-semibold">Collaboration unavailable</h2>
 
-        <p className="mt-2 text-sm text-red-200">
+        <p className="mt-2 text-sm text-red-700">
           Signed-in user is missing an email address.
         </p>
       </section>
@@ -93,23 +93,23 @@ export default function CollaborativeRoom({
 
   if (authError) {
     return (
-      <section className="rounded-3xl border border-red-900/70 bg-red-950/30 p-6 text-red-100">
+      <section className="mx-auto mt-8 max-w-[900px] rounded-2xl bg-red-50 p-6 text-red-900 ring-1 ring-red-200">
         <h2 className="text-lg font-semibold">Collaboration unavailable</h2>
 
-        <p className="mt-2 text-sm text-red-200">{authError}</p>
+        <p className="mt-2 text-sm text-red-700">{authError}</p>
 
         <div className="mt-5 flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => setAuthFailure(null)}
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-red-950 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="rounded-xl bg-red-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
           >
             Try again
           </button>
 
           <Link
             href="/"
-            className="rounded-full border border-red-700 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-900/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-red-800 ring-1 ring-red-200 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
           >
             Back to documents
           </Link>
@@ -120,7 +120,7 @@ export default function CollaborativeRoom({
 
   if (accessError) {
     return (
-      <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-amber-950 shadow-sm">
+      <section className="mx-auto mt-8 max-w-[900px] rounded-2xl bg-amber-50 p-6 text-amber-950 ring-1 ring-amber-200">
         <h2 className="text-lg font-semibold">Document access changed</h2>
         <p className="mt-2 text-sm text-amber-900">{accessError}</p>
 
@@ -131,14 +131,14 @@ export default function CollaborativeRoom({
               setAccessFailure(null);
               router.refresh();
             }}
-            className="rounded-full bg-amber-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
+            className="rounded-xl bg-amber-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
           >
             Refresh access
           </button>
 
           <Link
             href="/"
-            className="rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-950 ring-1 ring-amber-200 transition hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
           >
             Back to documents
           </Link>

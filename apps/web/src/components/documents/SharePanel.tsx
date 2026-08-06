@@ -288,7 +288,7 @@ export default function SharePanel({
   if (!isAuthReady) {
     return (
       <section
-        className="mb-6 rounded-3xl border border-stone-300 bg-white p-5 text-neutral-500 shadow-sm"
+        className="mb-6 rounded-[1.5rem] bg-white p-6 text-[#777771] shadow-[0_1px_2px_rgba(20,20,18,0.04),0_14px_40px_rgba(20,20,18,0.05)] ring-1 ring-black/[0.05]"
         role="status"
         aria-live="polite"
       >
@@ -298,24 +298,24 @@ export default function SharePanel({
   }
 
   return (
-    <section className="mb-6 rounded-3xl border border-stone-300 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <section className="mb-6 rounded-[1.5rem] bg-white p-5 shadow-[0_1px_2px_rgba(20,20,18,0.04),0_14px_40px_rgba(20,20,18,0.05)] ring-1 ring-black/[0.05] sm:p-7">
+      <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#85857f]">
             Sharing
           </p>
 
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-neutral-950">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-[#20201e]">
             Invite collaborators
           </h2>
 
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-2 max-w-xl text-sm leading-6 text-[#777771]">
             Choose whether each person can edit and comment or only view this
             document.
           </p>
         </div>
 
-        <div className="text-sm text-stone-500" aria-live="polite">
+        <div className="text-sm text-[#85857f]" aria-live="polite">
           {collaborators.length}{" "}
           {collaborators.length === 1 ? "collaborator" : "collaborators"}
         </div>
@@ -323,13 +323,13 @@ export default function SharePanel({
 
       <form
         onSubmit={handleShare}
-        className="grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 md:grid-cols-[minmax(0,1fr)_220px_140px] md:items-start"
+        className="grid gap-3 rounded-2xl bg-[#f5f5f2] p-4 md:grid-cols-[minmax(0,1fr)_220px_140px] md:items-start"
         aria-busy={isSharing}
       >
         <div>
           <label
             htmlFor="share-email"
-            className="mb-1.5 block text-sm font-medium text-neutral-800"
+            className="mb-1.5 block text-sm font-medium text-[#454541]"
           >
             Email address
           </label>
@@ -347,7 +347,7 @@ export default function SharePanel({
               setEmail(event.target.value);
               setFeedback(null);
             }}
-            className="min-h-12 w-full rounded-2xl border border-stone-300 bg-white px-4 text-neutral-900 outline-none placeholder:text-stone-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-stone-100"
+            className="min-h-11 w-full rounded-xl border border-black/[0.09] bg-white px-3.5 text-[#20201e] outline-none transition placeholder:text-[#aaa9a2] focus:border-[#4f46e5] focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-[#edede9]"
             placeholder="teammate@example.com"
           />
         </div>
@@ -355,7 +355,7 @@ export default function SharePanel({
         <div>
           <label
             htmlFor="share-role"
-            className="mb-1.5 block text-sm font-medium text-neutral-800"
+            className="mb-1.5 block text-sm font-medium text-[#454541]"
           >
             Access level
           </label>
@@ -371,14 +371,14 @@ export default function SharePanel({
               );
               setFeedback(null);
             }}
-            className="min-h-12 w-full rounded-2xl border border-stone-300 bg-white px-4 text-neutral-900 outline-none focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-stone-100"
+            className="min-h-11 w-full rounded-xl border border-black/[0.09] bg-white px-3.5 text-[#20201e] outline-none transition focus:border-[#4f46e5] focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-[#edede9]"
           >
             <option value="EDITOR">Editor</option>
             <option value="VIEWER">Viewer</option>
           </select>
           <p
             id="share-role-description"
-            className="mt-1.5 text-xs leading-5 text-neutral-500"
+            className="mt-1.5 text-xs leading-5 text-[#777771]"
           >
             {roleDescription}
           </p>
@@ -387,7 +387,7 @@ export default function SharePanel({
         <button
           type="submit"
           disabled={isSharing || !permissionsReady}
-          className="min-h-12 rounded-2xl bg-neutral-950 px-5 text-sm font-medium text-white transition hover:bg-neutral-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-950 disabled:cursor-not-allowed disabled:opacity-60 md:mt-[1.65rem]"
+          className="min-h-11 rounded-xl bg-[#20201e] px-5 text-sm font-semibold text-white transition duration-200 hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e] disabled:cursor-not-allowed disabled:opacity-50 md:mt-[1.65rem]"
         >
           {isSharing ? "Sharing..." : "Share access"}
         </button>
@@ -399,10 +399,10 @@ export default function SharePanel({
           tabIndex={-1}
           role={feedback.kind === "error" ? "alert" : "status"}
           aria-live={feedback.kind === "error" ? "assertive" : "polite"}
-          className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+          className={`mt-4 rounded-xl px-4 py-3 text-sm ring-1 ${
             feedback.kind === "error"
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+              ? "bg-red-50 text-red-700 ring-red-200"
+              : "bg-emerald-50 text-emerald-800 ring-emerald-200"
           }`}
         >
           {feedback.message}
@@ -411,19 +411,19 @@ export default function SharePanel({
 
       <div className="mt-5">
         {isLoading || permissionsDocumentId !== documentId ? (
-          <p role="status" aria-live="polite" className="text-sm text-neutral-500">
+          <p role="status" aria-live="polite" className="text-sm text-[#777771]">
             Loading people with access...
           </p>
         ) : loadError ? (
           <div
             role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700"
+            className="rounded-xl bg-red-50 px-4 py-4 text-sm text-red-700 ring-1 ring-red-200"
           >
             <p>{loadError}</p>
             <button
               type="button"
               onClick={() => void loadPermissions()}
-              className="mt-3 rounded-xl bg-white px-3 py-2 font-medium ring-1 ring-red-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+              className="mt-3 rounded-lg bg-white px-3 py-2 font-medium ring-1 ring-red-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
             >
               Try again
             </button>
@@ -432,19 +432,19 @@ export default function SharePanel({
           <div className="space-y-5">
             {ownerPermission && (
               <div>
-                <h3 className="text-sm font-semibold text-neutral-900">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#777771]">
                   Document owner
                 </h3>
-                <div className="mt-2 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-2 flex flex-col gap-3 rounded-xl bg-[#f7f7f4] p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-neutral-900">
+                    <p className="truncate text-sm font-semibold text-[#20201e]">
                       {ownerPermission.displayName}
                     </p>
-                    <p className="truncate text-sm text-neutral-500">
+                    <p className="truncate text-sm text-[#777771]">
                       {ownerPermission.userEmail}
                     </p>
                   </div>
-                  <span className="self-start rounded-full bg-neutral-950 px-3 py-1 text-xs font-medium text-white sm:self-auto">
+                  <span className="self-start rounded-md bg-[#20201e] px-2.5 py-1 text-xs font-medium text-white sm:self-auto">
                     Owner
                   </span>
                 </div>
@@ -452,12 +452,12 @@ export default function SharePanel({
             )}
 
             <div>
-              <h3 className="text-sm font-semibold text-neutral-900">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#777771]">
                 Collaborators
               </h3>
 
               {collaborators.length === 0 ? (
-                <div className="mt-2 rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-5 text-sm text-neutral-500">
+                <div className="mt-2 rounded-xl bg-[#f7f7f4] px-4 py-5 text-sm text-[#777771] ring-1 ring-inset ring-black/[0.05]">
                   No collaborators yet. Share access above to invite someone.
                 </div>
               ) : (
@@ -471,24 +471,24 @@ export default function SharePanel({
                     return (
                       <div
                         key={permission.id}
-                        className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
+                        className="flex flex-col gap-3 rounded-xl bg-white p-4 ring-1 ring-black/[0.06] transition duration-200 hover:shadow-[0_8px_24px_rgba(20,20,18,0.045)] md:flex-row md:items-center md:justify-between"
                         aria-busy={isRemoving}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-neutral-900">
+                          <p className="truncate text-sm font-semibold text-[#20201e]">
                             {permission.displayName}
                           </p>
-                          <p className="truncate text-sm text-neutral-500">
+                          <p className="truncate text-sm text-[#777771]">
                             {permission.userEmail}
                           </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`rounded-full px-3 py-1 text-xs font-medium ${
+                            className={`rounded-md px-2.5 py-1 text-xs font-medium ${
                               permission.role === "EDITOR"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-stone-100 text-stone-700"
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "bg-[#f1f1ee] text-[#666660]"
                             }`}
                           >
                             {displayRole(permission.role)}
@@ -498,7 +498,7 @@ export default function SharePanel({
                             <div
                               role="group"
                               aria-labelledby={confirmationLabelId}
-                              className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-2"
+                              className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-2 ring-1 ring-red-200"
                             >
                               <span
                                 id={confirmationLabelId}
@@ -511,7 +511,7 @@ export default function SharePanel({
                                 autoFocus
                                 disabled={isRemoving}
                                 onClick={() => cancelRemove(permission.id)}
-                                className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-neutral-700 ring-1 ring-stone-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700 disabled:opacity-50"
+                                className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-[#555550] ring-1 ring-black/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#555550] disabled:opacity-50"
                               >
                                 Cancel
                               </button>
@@ -531,7 +531,7 @@ export default function SharePanel({
                               onClick={() =>
                                 setConfirmingPermissionId(permission.id)
                               }
-                              className="rounded-xl border border-red-300 px-3 py-2 text-sm text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                              className="rounded-lg px-3 py-2 text-sm text-red-700 ring-1 ring-red-200 transition duration-150 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
                               aria-label={`Remove access for ${permission.displayName}`}
                             >
                               Remove

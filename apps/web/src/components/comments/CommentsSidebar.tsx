@@ -121,22 +121,22 @@ export default function CommentsSidebar({
 
   return (
     <aside
-      className="fixed inset-x-2 bottom-2 z-50 sm:inset-x-4 sm:bottom-4 xl:static xl:z-auto xl:block xl:w-[360px] xl:shrink-0"
+      className="syncpad-panel-enter fixed inset-x-2 bottom-2 z-50 sm:inset-x-4 sm:bottom-4 xl:static xl:z-auto xl:block xl:w-[370px] xl:shrink-0"
       aria-labelledby={headingId}
     >
       <div
-        className="max-h-[85dvh] w-full overscroll-contain overflow-y-auto rounded-[1.7rem] border border-[#dedbd3] bg-[#fbfaf7] p-3 shadow-2xl xl:sticky xl:top-[188px] xl:max-h-[calc(100vh-212px)] xl:shadow-sm"
+        className="max-h-[85dvh] w-full overscroll-contain overflow-y-auto rounded-[1.5rem] bg-white/95 p-3 shadow-[0_24px_80px_rgba(20,20,18,0.16)] ring-1 ring-black/[0.07] backdrop-blur-xl xl:sticky xl:top-[170px] xl:max-h-[calc(100vh-194px)] xl:shadow-[0_1px_2px_rgba(20,20,18,0.04),0_14px_40px_rgba(20,20,18,0.06)]"
         aria-busy={isLoading || mutation.length > 0}
       >
-        <div className="flex items-start justify-between gap-3 px-2 py-2">
+        <div className="flex items-start justify-between gap-3 px-2 pb-3 pt-2">
           <div>
             <h2
               id={headingId}
-              className="text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]"
+              className="text-[1.15rem] font-semibold tracking-[-0.035em] text-[#20201e]"
             >
               Comments
             </h2>
-            <p className="mt-1 text-sm text-[#6e6e73]">
+            <p className="mt-1 text-[13px] leading-5 text-[#85857f]">
               Updates appear live for everyone in this document.
             </p>
           </div>
@@ -146,7 +146,7 @@ export default function CommentsSidebar({
               ref={closeButton}
               type="button"
               onClick={handleClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#4f555c] transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b5cad]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-[#6f6f69] transition duration-200 hover:bg-black/[0.045] hover:text-[#20201e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4f46e5]"
               aria-label="Close comments"
               title="Close comments"
             >
@@ -155,23 +155,23 @@ export default function CommentsSidebar({
           </div>
         </div>
 
-        <div className="mx-1 mt-2 rounded-2xl border border-[#dedbd3] bg-white p-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#6e6e73]">
+        <div className="mx-1 rounded-xl bg-[#f5f5f2] p-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#777771]">
             <span
-              className="rounded-full bg-[#fff3c4] px-2.5 py-1 text-[#765a00]"
+              className="rounded-lg bg-white px-2.5 py-1.5 text-[#6d560f] shadow-sm ring-1 ring-black/[0.04]"
               aria-label={`${openCount} open comments`}
             >
               Open ({openCount})
             </span>
             <span
-              className="rounded-full bg-[#eceae5] px-2.5 py-1 text-[#66615a]"
+              className="rounded-lg px-2.5 py-1.5 text-[#777771]"
               aria-label={`${resolvedCount} resolved comments`}
             >
               Resolved ({resolvedCount})
             </span>
           </div>
 
-          <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 text-sm font-medium text-[#343438]">
+          <label className="mt-2.5 flex cursor-pointer items-center justify-between gap-3 rounded-lg px-1 py-1 text-[13px] font-medium text-[#555550]">
             <span>Show resolved comments</span>
             <input
               type="checkbox"
@@ -180,18 +180,18 @@ export default function CommentsSidebar({
               onChange={(event) =>
                 onShowResolvedComments(event.target.checked)
               }
-              className="h-5 w-5 accent-[#0b5cad] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b5cad]"
+              className="h-4 w-4 accent-[#4f46e5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4f46e5]"
             />
           </label>
         </div>
 
         {mutationError && (
-          <p role="alert" className="mx-1 mt-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-sm leading-5 text-red-700">
+          <p role="alert" className="mx-1 mt-2 rounded-xl bg-red-50 px-3 py-2 text-sm leading-5 text-red-700 ring-1 ring-red-200">
             {mutationError}
           </p>
         )}
 
-        <div className="mt-3 space-y-3">
+        <div className="mt-2.5 space-y-2.5">
           {pendingComment && (
             <CreateCommentComposer
               key={pendingComment.selectedText}
@@ -208,23 +208,23 @@ export default function CommentsSidebar({
             <p
               role="status"
               aria-live="polite"
-              className="rounded-2xl bg-white px-4 py-5 text-sm text-[#6e6e73]"
+              className="rounded-xl bg-[#f7f7f4] px-4 py-5 text-sm text-[#777771]"
             >
               Loading comments...
             </p>
           ) : loadError ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+            <div className="rounded-xl bg-red-50 px-4 py-4 text-sm text-red-700 ring-1 ring-red-200">
               <p>{loadError}</p>
               <button
                 type="button"
                 onClick={onRefresh}
-                className="mt-3 rounded-full bg-white px-3 py-2 font-medium text-red-700 ring-1 ring-red-200"
+                className="mt-3 rounded-lg bg-white px-3 py-2 font-medium text-red-700 ring-1 ring-red-200"
               >
                 Try again
               </button>
             </div>
           ) : visibleThreads.length === 0 && !pendingComment ? (
-            <div className="rounded-2xl border border-dashed border-[#cbc8c0] bg-white px-4 py-6 text-center text-sm leading-6 text-[#6e6e73]">
+            <div className="rounded-xl bg-[#f7f7f4] px-4 py-7 text-center text-sm leading-6 text-[#777771] ring-1 ring-inset ring-black/[0.05]">
               {threads.length === 0
                 ? canComment
                   ? "Select text in the document and choose Add comment to start a discussion."

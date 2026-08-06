@@ -37,18 +37,18 @@ export default function CreateCommentComposer({
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-[1.4rem] border border-[#b7d7f0] bg-[#f4faff] p-4 shadow-sm"
+      className="syncpad-panel-enter rounded-2xl bg-white p-4 shadow-[0_12px_34px_rgba(20,20,18,0.08)] ring-2 ring-indigo-200"
       aria-busy={isSubmitting}
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0b5cad]">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f46e5]">
         New comment
       </p>
 
-      <blockquote className="mt-3 line-clamp-3 border-l-2 border-[#7eb7e6] pl-3 text-sm leading-6 text-[#4f555c]">
+      <blockquote className="mt-3 line-clamp-3 border-l-2 border-indigo-300 pl-3 text-[13px] leading-5 text-[#6f6f69]">
         {selectedText}
       </blockquote>
 
-      <label className="mt-4 block text-sm font-medium text-[#1d1d1f]">
+      <label className="mt-4 block text-sm font-medium text-[#343431]">
         Comment
         <textarea
           autoFocus
@@ -57,7 +57,7 @@ export default function CreateCommentComposer({
           required
           disabled={isSubmitting}
           onChange={(event) => setMessage(event.target.value)}
-          className="mt-2 min-h-24 w-full resize-y rounded-2xl border border-[#c7d9e7] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#0b5cad] disabled:cursor-not-allowed disabled:bg-[#f5f4f1] disabled:opacity-70"
+          className="mt-2 min-h-24 w-full resize-y rounded-xl border border-black/[0.09] bg-[#fbfbf9] px-3 py-2 text-sm leading-6 outline-none transition focus:border-[#4f46e5] focus:bg-white focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-[#f1f1ee] disabled:opacity-70"
           placeholder="What would you like collaborators to know?"
         />
       </label>
@@ -67,7 +67,7 @@ export default function CreateCommentComposer({
           type="button"
           disabled={isSubmitting}
           onClick={onCancel}
-          className="min-h-11 rounded-full px-3 py-2 text-sm font-medium text-[#4f555c] transition hover:bg-white disabled:opacity-50"
+          className="min-h-10 rounded-lg px-3 py-2 text-sm font-medium text-[#666660] transition duration-150 hover:bg-black/[0.04] disabled:opacity-50"
         >
           Cancel
         </button>
@@ -75,7 +75,7 @@ export default function CreateCommentComposer({
         <button
           type="submit"
           disabled={!message.trim() || isSubmitting}
-          className="min-h-11 rounded-full bg-[#0b5cad] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#084b8d] disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-10 rounded-lg bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white transition duration-150 hover:bg-[#4338ca] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Adding..." : "Comment"}
         </button>

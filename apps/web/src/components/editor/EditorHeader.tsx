@@ -113,10 +113,10 @@ export default function EditorHeader({
   }
 
   return (
-    <header className="border-b border-[#dedbd3] bg-[#fbfaf7]/95 backdrop-blur-xl">
-      <div className="px-4 py-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-1 items-start gap-4">
+    <header className="relative z-40 border-b border-black/[0.06] bg-[#fbfbf9]/90 backdrop-blur-2xl">
+      <div className="mx-auto max-w-[1800px] px-3 py-3 sm:px-5 lg:px-7">
+        <div className="flex items-start justify-between gap-3 sm:items-center">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center">
             <Link
               href="/"
               onClick={(event) => {
@@ -128,7 +128,7 @@ export default function EditorHeader({
                   });
                 }
               }}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.1rem] bg-neutral-950 text-xl text-white shadow-sm transition hover:bg-neutral-800"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg text-[#5f5f5a] transition duration-200 hover:bg-black/[0.05] hover:text-[#20201e]"
               aria-label="Back to documents"
               title="Back to documents"
             >
@@ -136,11 +136,8 @@ export default function EditorHeader({
             </Link>
 
             <div className="min-w-0 flex-1">
-              <form
-                onSubmit={handleRename}
-                className="flex min-w-0 flex-col gap-2"
-              >
-                <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <form onSubmit={handleRename} className="flex min-w-0 flex-col">
+                <div className="flex min-w-0 items-center gap-2">
                   <input
                     id="document-title"
                     aria-label="Document title"
@@ -153,7 +150,7 @@ export default function EditorHeader({
                       setMessage(null);
                       setShowLeaveWarning(false);
                     }}
-                    className="min-w-0 max-w-full rounded-xl border border-transparent bg-transparent px-2 py-1 text-[1.55rem] font-semibold leading-none tracking-[-0.04em] text-[#1d1d1f] outline-none transition focus:border-[#d2d2d7] focus:bg-white read-only:cursor-default"
+                    className="min-w-0 w-full max-w-[720px] rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[1.15rem] font-semibold leading-tight tracking-[-0.025em] text-[#20201e] outline-none transition duration-200 hover:bg-black/[0.025] focus:border-black/[0.08] focus:bg-white read-only:cursor-default sm:text-[1.3rem]"
                     placeholder="Untitled document"
                   />
 
@@ -161,23 +158,27 @@ export default function EditorHeader({
                     <button
                       type="submit"
                       disabled={isSaving}
-                      className="rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                      className="shrink-0 rounded-lg bg-[#20201e] px-3 py-1.5 text-xs font-semibold text-white transition duration-200 hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSaving ? "Saving..." : "Save title"}
                     </button>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-sm text-[#6e6e73]">
-                  <span className="rounded-full bg-white px-3 py-1 font-medium text-[#1d1d1f] ring-1 ring-[#dedbd3]">
+                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-xs text-[#777771]">
+                  <span className="font-medium text-[#555550]">
                     SyncPad
                   </span>
 
-                  <span className="rounded-full bg-white px-3 py-1 font-medium text-[#1d1d1f] ring-1 ring-[#dedbd3]">
+                  <span aria-hidden="true" className="text-[#c1c1bb]">/</span>
+
+                  <span className="font-medium text-[#777771]">
                     {roleLabel}
                   </span>
 
-                  <span aria-live="polite">
+                  <span aria-hidden="true" className="h-1 w-1 rounded-full bg-[#c1c1bb]" />
+
+                  <span aria-live="polite" className="truncate">
                     {message ??
                       (hasUnsavedTitle
                         ? "Unsaved title changes"
@@ -190,12 +191,12 @@ export default function EditorHeader({
                     ref={leaveWarningRef}
                     tabIndex={-1}
                     role="alert"
-                    className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                    className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950 ring-1 ring-amber-200"
                   >
                     <span>Save the title, or discard it before leaving.</span>
                     <Link
                       href="/"
-                      className="rounded-full bg-amber-950 px-3 py-1.5 font-semibold text-white"
+                      className="rounded-lg bg-amber-950 px-3 py-1.5 font-semibold text-white"
                     >
                       Discard and leave
                     </Link>
@@ -205,7 +206,7 @@ export default function EditorHeader({
                         setShowLeaveWarning(false);
                         document.getElementById("document-title")?.focus();
                       }}
-                      className="rounded-full px-3 py-1.5 font-semibold hover:bg-amber-100"
+                      className="rounded-lg px-3 py-1.5 font-semibold transition hover:bg-amber-100"
                     >
                       Keep editing
                     </button>
@@ -215,17 +216,17 @@ export default function EditorHeader({
             </div>
           </div>
 
-          <div className="flex w-full shrink-0 items-center justify-end gap-3 sm:w-auto">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             {canOpenShare && (
               <a
                 href="#sharing-panel"
-                className="rounded-full bg-[#c7e7ff] px-5 py-3 text-sm font-semibold text-[#0b3d62] transition hover:bg-[#b7def8]"
+                className="rounded-xl bg-[#20201e] px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e]"
               >
                 Share
               </a>
             )}
 
-            <div className="rounded-full bg-white p-1 shadow-sm ring-1 ring-[#dedbd3]">
+            <div className="rounded-full bg-white p-0.5 shadow-[0_1px_2px_rgba(20,20,18,0.08)] ring-1 ring-black/[0.08]">
               <UserButton
                 appearance={{
                   elements: {

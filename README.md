@@ -8,6 +8,16 @@ It allows multiple authenticated users to edit the same document simultaneously,
 
 The project is designed as a production-oriented collaborative system rather than a basic text editor demo. It includes persistent collaborative state, server-side authorization, database migrations, automated testing, CI, responsive interfaces, and protections against stale or revoked permissions.
 
+## Screenshots
+
+![](docs/images/screenshot1.png)
+
+![](docs/images/screenshot2.png)
+
+![](docs/images/screenshot3.png)
+
+---
+
 ## Project status
 
 SyncPad is under active development.
@@ -1065,29 +1075,6 @@ wss://collab.syncpad.example.com
 ```
 
 Production deployment is not yet complete.
-
----
-
-## Screenshots
-
-Add screenshots after deployment or final UI polish.
-
-Suggested screenshots:
-
-1. Landing page
-2. Dashboard
-3. Collaborative editor with multiple users
-4. Sharing dialog
-5. Viewer read-only mode
-6. Comment thread with replies
-7. Responsive mobile comments drawer
-
-Example:
-
-```markdown
-![SyncPad dashboard](docs/images/dashboard.png)
-![SyncPad collaborative editor](docs/images/editor.png)
-```
 
 ---
 

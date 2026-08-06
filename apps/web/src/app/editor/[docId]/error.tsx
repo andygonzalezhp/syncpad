@@ -17,15 +17,15 @@ export default function EditorError({
   }, [error]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f1f3f4] px-6 text-[#1d1d1f]">
-      <section className="max-w-xl rounded-[2rem] border border-red-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-700">
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5] px-6 text-[#20201e]">
+      <section className="max-w-xl rounded-[1.75rem] bg-white p-8 text-center shadow-[0_1px_2px_rgba(20,20,18,0.04),0_20px_60px_rgba(20,20,18,0.07)] ring-1 ring-black/[0.05] sm:p-10">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-700">
           SyncPad
         </p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em]">
+        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
           The document service is unavailable.
         </h1>
-        <p className="mt-3 leading-7 text-[#6e6e73]">
+        <p className="mx-auto mt-4 max-w-md leading-7 text-[#6f6f6b]">
           Your document was not reported missing. This may be a temporary
           connection problem, so it is safe to try loading it again.
         </p>
@@ -34,13 +34,13 @@ export default function EditorError({
           <button
             type="button"
             onClick={() => unstable_retry()}
-            className="rounded-full bg-[#1d1d1f] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f]"
+            className="rounded-xl bg-[#20201e] px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e]"
           >
             Try again
           </button>
           <Link
             href="/"
-            className="rounded-full border border-[#dedbd3] bg-white px-5 py-3 text-sm font-semibold text-[#1d1d1f] transition hover:bg-[#f5f4f1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f]"
+            className="rounded-xl bg-[#f1f1ee] px-5 py-3 text-sm font-semibold text-[#20201e] transition duration-200 hover:bg-[#e9e9e5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e]"
           >
             Back to documents
           </Link>

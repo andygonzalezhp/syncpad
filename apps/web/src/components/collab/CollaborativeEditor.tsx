@@ -611,7 +611,7 @@ export default function CollaborativeEditor({
       editorProps: {
         attributes: {
           class:
-            "syncpad-editor min-h-[65vh] px-5 py-8 text-[11pt] leading-[1.5] text-[#1d1d1f] outline-none sm:px-10 sm:py-12 lg:min-h-[980px] lg:px-[76px] lg:py-[72px]",
+            "syncpad-editor min-h-[70vh] px-5 py-10 text-[16px] leading-[1.72] outline-none sm:px-12 sm:py-14 lg:min-h-[960px] lg:px-[72px] lg:py-[80px]",
           role: canEdit ? "textbox" : "document",
           "aria-label": canEdit
             ? "Collaborative document editor"
@@ -921,9 +921,9 @@ export default function CollaborativeEditor({
           : "Synced";
 
   return (
-    <section className="space-y-0">
-      <div className="relative z-30 border-b border-[#dedbd3] bg-[#f5f4f1]/95 px-3 pb-3 backdrop-blur-xl md:px-6 lg:sticky lg:top-0">
-        <div className="flex flex-wrap items-center gap-1 px-1 py-2 text-[0.95rem] text-[#1d1d1f]">
+    <section>
+      <div className="relative z-30 -mx-2 border-b border-black/[0.055] bg-[#f7f7f5]/92 px-3 pb-2 backdrop-blur-2xl sm:-mx-4 sm:px-5 lg:-mx-6 lg:sticky lg:top-0 lg:px-7">
+        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-0.5 py-1.5 text-sm text-[#20201e]">
           <div className="relative">
             <MenuButton
               label="File"
@@ -1473,23 +1473,26 @@ export default function CollaborativeEditor({
             )}
           </div>
 
-          <div
-            role="status"
-            aria-live="polite"
-            className="ml-auto flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#4f555c] ring-1 ring-[#dedbd3]"
-          >
-            <ConnectionIndicator status={connectionStatus} />
-            <span>{collaborationLabel}</span>
-            <span aria-hidden="true">·</span>
-            <span>
-              {onlineUsers.length} {onlineUsers.length === 1 ? "person" : "people"}
-            </span>
+          <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
+            <CollaboratorStack
+              users={onlineUsers}
+              currentUserEmail={currentUser.email}
+            />
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex h-8 items-center gap-2 rounded-lg bg-black/[0.035] px-2.5 text-xs font-medium text-[#5f5f59]"
+              title={`${collaborationLabel} · ${onlineUsers.length} ${onlineUsers.length === 1 ? "person" : "people"}`}
+            >
+              <ConnectionIndicator status={connectionStatus} />
+              <span className="hidden sm:inline">{collaborationLabel}</span>
+            </div>
           </div>
 
           {editorFeedback && (
             <span
               role={editorFeedback.kind === "error" ? "alert" : "status"}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+              className={`syncpad-panel-enter shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium ${
                 editorFeedback.kind === "error"
                   ? "bg-red-50 text-red-700 ring-1 ring-red-200"
                   : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
@@ -1500,11 +1503,11 @@ export default function CollaborativeEditor({
           )}
         </div>
 
-        <div className="rounded-[2rem] border border-[#dedbd3] bg-[#ebe9e4]/90 p-2 shadow-sm sm:px-4 sm:py-3">
+        <div className="mx-auto max-w-[1800px] rounded-2xl bg-white/90 p-1.5 shadow-[0_1px_2px_rgba(20,20,18,0.05),0_8px_24px_rgba(20,20,18,0.035)] ring-1 ring-black/[0.06] sm:px-2 sm:py-2">
           <div
             role="toolbar"
             aria-label="Document formatting"
-            className="flex flex-wrap items-center gap-x-1 gap-y-2"
+            className="flex flex-wrap items-center gap-x-0.5 gap-y-1"
           >
             <ToolbarButton
               label="↶"
@@ -1727,7 +1730,7 @@ export default function CollaborativeEditor({
               }
             />
 
-            <label className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-[#1d1d1f] transition hover:bg-white/80">
+            <label className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-[#454541] transition duration-150 hover:bg-black/[0.045]">
               A
               <input
                 type="color"
@@ -1742,7 +1745,7 @@ export default function CollaborativeEditor({
               />
             </label>
 
-            <label className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-[#1d1d1f] transition hover:bg-white/80">
+            <label className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-[#454541] transition duration-150 hover:bg-black/[0.045]">
               Fill
               <input
                 type="color"
@@ -1872,7 +1875,7 @@ export default function CollaborativeEditor({
           <form
             aria-label="Edit link"
             onSubmit={handleLinkSubmit}
-            className="mt-3 rounded-[1.35rem] border border-[#dedbd3] bg-white p-3 shadow-sm"
+            className="syncpad-panel-enter mx-auto mt-2 max-w-[1800px] rounded-2xl bg-white p-3 shadow-[0_12px_36px_rgba(20,20,18,0.08)] ring-1 ring-black/[0.06]"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <label className="min-w-0 flex-1 text-sm font-medium text-[#343438]">
@@ -1886,7 +1889,7 @@ export default function CollaborativeEditor({
                     setLinkUrl(event.target.value);
                     setLinkError(null);
                   }}
-                  className="mt-1 min-h-10 w-full rounded-full border border-[#dedbd3] px-4 text-sm outline-none focus:border-[#1d1d1f] focus-visible:ring-2 focus-visible:ring-[#b7d7f0]"
+                  className="mt-1 min-h-10 w-full rounded-xl border border-black/[0.09] bg-[#fbfbf9] px-3.5 text-sm outline-none transition focus:border-[#4f46e5] focus:bg-white focus-visible:ring-2 focus-visible:ring-indigo-100"
                   placeholder="https://example.com"
                 />
               </label>
@@ -1895,7 +1898,7 @@ export default function CollaborativeEditor({
                 <button
                   type="submit"
                   disabled={!linkUrl.trim()}
-                  className="rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-medium text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-xl bg-[#20201e] px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Apply link
                 </button>
@@ -1921,7 +1924,7 @@ export default function CollaborativeEditor({
         {showFindPanel && (
           <div
             role="search"
-            className="mt-3 rounded-[1.35rem] border border-[#dedbd3] bg-white p-3 shadow-sm"
+            className="syncpad-panel-enter mx-auto mt-2 max-w-[1800px] rounded-2xl bg-white p-3 shadow-[0_12px_36px_rgba(20,20,18,0.08)] ring-1 ring-black/[0.06]"
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1948,7 +1951,7 @@ export default function CollaborativeEditor({
                     setCurrentMatchIndex(next);
                     selectFindMatch(editor, findMatches[next]);
                   }}
-                  className="min-h-10 min-w-0 flex-1 rounded-full border border-[#dedbd3] px-4 text-sm outline-none focus:border-[#1d1d1f]"
+                  className="min-h-10 min-w-0 flex-1 rounded-xl border border-black/[0.09] bg-[#fbfbf9] px-3.5 text-sm outline-none transition focus:border-[#4f46e5] focus:bg-white"
                   placeholder="Find"
                 />
 
@@ -1959,7 +1962,7 @@ export default function CollaborativeEditor({
                   id="syncpad-replace"
                   value={replaceText}
                   onChange={(event) => setReplaceText(event.target.value)}
-                  className="min-h-10 min-w-0 flex-1 rounded-full border border-[#dedbd3] px-4 text-sm outline-none focus:border-[#1d1d1f]"
+                  className="min-h-10 min-w-0 flex-1 rounded-xl border border-black/[0.09] bg-[#fbfbf9] px-3.5 text-sm outline-none transition focus:border-[#4f46e5] focus:bg-white"
                   placeholder="Replace"
                   disabled={!canEdit}
                 />
@@ -2017,7 +2020,7 @@ export default function CollaborativeEditor({
                 <button
                   type="button"
                   disabled={!canEdit || findMatches.length === 0}
-                  className="rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-xl bg-[#20201e] px-4 py-2 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={() => {
                     replaceAllMatches(editor, findMatches, replaceText);
                     setCurrentMatchIndex(0);
@@ -2040,42 +2043,42 @@ export default function CollaborativeEditor({
         )}
 
         {showRuler && (
-          <div className="mt-3 px-2">
-            <div className="mx-auto flex max-w-[1110px] items-end">
-              <div className="h-6 w-[80px]" />
+          <div className="mt-2 px-2">
+            <div className="mx-auto flex max-w-[900px] items-end">
+              <div className="h-5 w-[72px]" />
 
-              <div className="relative flex h-6 flex-1 items-end rounded-t-xl border border-b-0 border-[#dedbd3] bg-[#fbfaf7] px-5">
-                <div className="flex w-full items-end justify-between text-[10px] text-[#86868b]">
+              <div className="relative flex h-5 flex-1 items-end rounded-t-lg border border-b-0 border-black/[0.06] bg-white/65 px-4">
+                <div className="flex w-full items-end justify-between text-[9px] text-[#999992]">
                   {Array.from({ length: 8 }).map((_, index) => (
                     <div
                       key={index}
                       className="flex flex-col items-center gap-1"
                     >
                       <span>{index + 1}</span>
-                      <span className="h-2 w-px bg-[#c7c7cc]" />
+                      <span className="h-1.5 w-px bg-[#d0d0ca]" />
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="h-6 w-[80px]" />
+              <div className="h-5 w-[72px]" />
             </div>
           </div>
         )}
       </div>
 
-      <div className="bg-[#f5f4f1] px-2 pb-12 pt-6 md:px-6">
-        <div className="mx-auto flex max-w-[1780px] flex-col gap-6 xl:flex-row xl:gap-8">
+      <div className="px-0 pb-14 pt-7 sm:px-2 md:pt-9">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-6 xl:flex-row xl:items-start xl:gap-7">
           {showOutline && !comments.isPanelOpen && (
-            <aside className="hidden w-[260px] shrink-0 px-3 py-3 xl:block">
-              <div className="space-y-5 rounded-3xl bg-transparent px-2">
+            <aside className="hidden w-[220px] shrink-0 px-2 py-2 xl:sticky xl:top-[170px] xl:block">
+              <div className="space-y-6 px-1">
                 <div>
-                  <h3 className="text-[1.05rem] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#777771]">
                     Document outline
                   </h3>
 
                   {outlineItems.length === 0 ? (
-                    <p className="mt-3 px-1 text-[0.95rem] italic leading-7 text-[#6e6e73]">
+                    <p className="mt-3 px-1 text-sm leading-6 text-[#8a8a84]">
                       Headings you add to the document will appear here.
                     </p>
                   ) : (
@@ -2085,7 +2088,7 @@ export default function CollaborativeEditor({
                           key={item.id}
                           type="button"
                           onClick={() => jumpToPosition(editor, item.pos)}
-                          className="block w-full rounded-2xl px-3 py-2 text-left text-sm text-[#1d1d1f] transition hover:bg-white"
+                          className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-[#555550] transition duration-200 hover:bg-black/[0.04] hover:text-[#20201e]"
                           style={{
                             paddingLeft: `${item.level * 12}px`,
                           }}
@@ -2097,8 +2100,8 @@ export default function CollaborativeEditor({
                   )}
                 </div>
 
-                <div className="rounded-[1.4rem] border border-[#dedbd3] bg-white/80 p-4 text-sm text-[#6e6e73] shadow-sm">
-                  <p className="font-medium text-[#1d1d1f]">Status</p>
+                <div className="border-t border-black/[0.06] px-1 pt-5 text-sm text-[#777771]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#777771]">Status</p>
 
                   <div className="mt-3 flex flex-col gap-2">
                     <div className="flex items-center gap-2">
@@ -2115,34 +2118,36 @@ export default function CollaborativeEditor({
                 </div>
 
                 {onlineUsers.length > 0 && (
-                  <div className="rounded-[1.4rem] border border-[#dedbd3] bg-white/80 p-4 text-sm shadow-sm">
-                    <p className="font-medium text-[#1d1d1f]">
+                  <div className="border-t border-black/[0.06] px-1 pt-5 text-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#777771]">
                       Active collaborators
                     </p>
 
-                    <div className="mt-3 flex flex-col gap-2">
+                    <div className="mt-3 flex flex-col gap-1">
                       {onlineUsers.map((user) => (
                         <div
                           key={user.key}
-                          className="flex items-center gap-2 rounded-2xl bg-[#f5f4f1] px-3 py-2 text-[#1d1d1f]"
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[#343431] transition hover:bg-black/[0.035]"
                         >
                           <span
-                            className="h-2.5 w-2.5 rounded-full"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white ring-2 ring-white"
                             style={{ backgroundColor: user.color }}
-                          />
+                          >
+                            {user.name.charAt(0).toUpperCase()}
+                          </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate">
                               {user.name}
                               {user.email === currentUser.email ? " (You)" : ""}
                             </span>
                             {user.email && (
-                              <span className="block truncate text-xs text-[#6e6e73]">
+                              <span className="block truncate text-xs text-[#8a8a84]">
                                 {user.email}
                               </span>
                             )}
                           </span>
                           {user.role && (
-                            <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#4f555c] ring-1 ring-[#dedbd3]">
+                            <span className="shrink-0 text-[0.62rem] font-semibold uppercase tracking-wide text-[#8a8a84]">
                               {user.role.toLowerCase()}
                             </span>
                           )}
@@ -2165,14 +2170,14 @@ export default function CollaborativeEditor({
 
           <div className="min-w-0 flex-1">
             {!canEdit && (
-              <div className="mx-auto mb-4 max-w-[1110px] rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="mx-auto mb-4 max-w-[900px] rounded-xl bg-amber-50/80 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200/80">
                 You have viewer access. This document is read-only.
               </div>
             )}
 
             {hasSelection && canEdit && (
-              <div className="mx-auto mb-3 flex max-w-[1110px] flex-wrap items-center gap-2 rounded-[1.4rem] border border-[#dedbd3] bg-white/90 px-3 py-2 shadow-sm">
-                <span className="mr-2 text-sm text-[#6e6e73]">
+              <div className="syncpad-panel-enter mx-auto mb-3 flex max-w-[900px] flex-wrap items-center gap-1.5 rounded-xl bg-[#20201e] px-2 py-1.5 shadow-[0_10px_30px_rgba(20,20,18,0.16)]">
+                <span className="mr-1 px-2 text-xs font-medium text-white/60">
                   Selection
                 </span>
 
@@ -2212,15 +2217,15 @@ export default function CollaborativeEditor({
 
             <div className="overflow-x-auto pb-2">
               <div
-                className={`relative mx-auto bg-white transition-shadow ${
+                className={`relative mx-auto bg-white transition-[box-shadow,border-radius] duration-300 ${
                   printLayout
-                    ? "max-w-[1110px] rounded-sm border border-[#dedbd3] shadow-[0_12px_48px_rgba(0,0,0,0.10)]"
-                    : "max-w-[1200px] rounded-[2rem] border border-[#dedbd3] shadow-sm"
+                    ? "max-w-[900px] rounded-[3px] shadow-[0_1px_2px_rgba(20,20,18,0.05),0_18px_60px_rgba(20,20,18,0.08)] ring-1 ring-black/[0.055]"
+                    : "max-w-[1000px] rounded-[1.5rem] shadow-[0_1px_2px_rgba(20,20,18,0.04)] ring-1 ring-black/[0.045]"
                 }`}
                 style={{ zoom: `${zoom}%` }}
               >
                 {editor?.isEmpty && (
-                  <p className="pointer-events-none absolute left-5 top-8 z-10 text-[11pt] text-[#86868b] sm:left-10 sm:top-12 lg:left-[76px] lg:top-[72px]">
+                  <p className="pointer-events-none absolute left-5 top-10 z-10 text-[16px] text-[#aaa9a2] sm:left-12 sm:top-14 lg:left-[72px] lg:top-[80px]">
                     {canEdit
                       ? "Start writing your document…"
                       : "This document is empty."}
@@ -2275,10 +2280,10 @@ function MenuButton({
       aria-expanded={active}
       aria-haspopup="true"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] ${
+      className={`h-8 rounded-lg px-2.5 text-[13px] font-medium transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e] ${
         active
-          ? "bg-white text-[#1d1d1f] shadow-sm"
-          : "text-[#1d1d1f] hover:bg-white/70"
+          ? "bg-white text-[#20201e] shadow-[0_1px_2px_rgba(20,20,18,0.06)] ring-1 ring-black/[0.05]"
+          : "text-[#555550] hover:bg-black/[0.04] hover:text-[#20201e]"
       }`}
     >
       {label}
@@ -2297,7 +2302,7 @@ function DropdownMenu({
     <div
       role="group"
       aria-label="Document commands"
-      className={`fixed inset-x-4 top-[4.25rem] z-50 max-h-[calc(100vh-5.25rem)] overflow-y-auto rounded-[1.2rem] border border-[#dedbd3] bg-white py-2 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:absolute sm:inset-x-auto sm:top-9 sm:w-[min(340px,calc(100vw-2rem))] ${
+      className={`syncpad-panel-enter fixed inset-x-4 top-[4.25rem] z-50 max-h-[calc(100vh-5.25rem)] overflow-y-auto rounded-2xl bg-white py-1.5 shadow-[0_20px_64px_rgba(20,20,18,0.16)] ring-1 ring-black/[0.08] sm:absolute sm:inset-x-auto sm:top-9 sm:w-[min(320px,calc(100vw-2rem))] ${
         align === "right" ? "sm:right-0" : "sm:left-0"
       }`}
     >
@@ -2325,7 +2330,7 @@ function DropdownItem({
       aria-pressed={checked}
       disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-sm text-[#1d1d1f] transition hover:bg-[#f5f4f1] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:text-[#b8b9ba]"
+      className="flex w-full items-center justify-between gap-4 px-3.5 py-2 text-left text-sm text-[#343431] transition duration-150 hover:bg-black/[0.035] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#20201e] disabled:cursor-not-allowed disabled:text-[#b8b8b2]"
     >
       <span className="flex items-center gap-3">
         <span className="w-4 text-center text-[#6e6e73]">
@@ -2340,14 +2345,14 @@ function DropdownItem({
 }
 
 function DropdownSeparator() {
-  return <div className="my-2 h-px bg-[#e5e1d8]" />;
+  return <div className="my-1.5 h-px bg-black/[0.06]" />;
 }
 
 function DropdownStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between px-4 py-2 text-sm">
-      <span className="text-[#6e6e73]">{label}</span>
-      <span className="font-medium text-[#1d1d1f]">{value}</span>
+      <span className="text-[#777771]">{label}</span>
+      <span className="font-medium text-[#20201e]">{value}</span>
     </div>
   );
 }
@@ -2373,10 +2378,10 @@ function ToolbarButton({
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`h-10 shrink-0 rounded-full px-3 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-35 ${
+      className={`h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e] disabled:cursor-not-allowed disabled:opacity-30 ${
         active
-          ? "bg-[#1d1d1f] text-white"
-          : "text-[#1d1d1f] hover:bg-white/80"
+          ? "bg-[#20201e] text-white shadow-sm"
+          : "text-[#454541] hover:bg-black/[0.045]"
       }`}
     >
       {label}
@@ -2408,7 +2413,7 @@ function ToolbarSelect({
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className={`h-10 shrink-0 rounded-full border border-transparent bg-transparent px-3 text-sm font-medium text-[#1d1d1f] outline-none transition hover:bg-white/80 focus:border-[#dedbd3] focus:bg-white focus-visible:ring-2 focus-visible:ring-[#b7d7f0] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`h-8 shrink-0 rounded-lg border border-transparent bg-transparent px-2 text-[13px] font-medium text-[#454541] outline-none transition duration-150 hover:bg-black/[0.045] focus:border-black/[0.08] focus:bg-white focus-visible:ring-2 focus-visible:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-35 ${className}`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
@@ -2432,7 +2437,7 @@ function SmallButton({
     <button
       type="button"
       disabled={disabled}
-      className="rounded-full border border-[#dedbd3] bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition hover:bg-[#f5f4f1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-[#343431] shadow-sm ring-1 ring-black/[0.08] transition duration-150 hover:bg-[#f5f5f2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#20201e] disabled:cursor-not-allowed disabled:opacity-40"
       onClick={onClick}
     >
       {children}
@@ -2441,7 +2446,52 @@ function SmallButton({
 }
 
 function ToolbarDivider() {
-  return <div aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[#d0cec7]" />;
+  return <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-black/[0.08]" />;
+}
+
+function CollaboratorStack({
+  users,
+  currentUserEmail,
+}: {
+  users: OnlineUser[];
+  currentUserEmail: string;
+}) {
+  if (users.length === 0) {
+    return null;
+  }
+
+  const visibleUsers = users.slice(0, 4);
+  const hiddenUserCount = users.length - visibleUsers.length;
+
+  return (
+    <div
+      className="flex items-center -space-x-1.5"
+      aria-label={`${users.length} active ${users.length === 1 ? "collaborator" : "collaborators"}`}
+    >
+      {visibleUsers.map((user) => (
+        <span
+          key={user.key}
+          className="group relative flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold text-white shadow-sm ring-2 ring-[#f7f7f5] transition duration-200 hover:z-10 hover:-translate-y-0.5"
+          style={{ backgroundColor: user.color }}
+          aria-label={`${user.name}${user.email === currentUserEmail ? ", you" : ""}`}
+        >
+          {user.name.charAt(0).toUpperCase()}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-9 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#20201e] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition duration-150 group-hover:opacity-100"
+          >
+            {user.name}{user.email === currentUserEmail ? " · You" : ""}
+          </span>
+        </span>
+      ))}
+
+      {hiddenUserCount > 0 && (
+        <span className="relative flex h-7 min-w-7 items-center justify-center rounded-full bg-[#e9e9e5] px-1.5 text-[10px] font-semibold text-[#5f5f59] ring-2 ring-[#f7f7f5]">
+          +{hiddenUserCount}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function ConnectionIndicator({ status }: { status: string }) {
@@ -2453,6 +2503,6 @@ function ConnectionIndicator({ status }: { status: string }) {
         : "bg-red-500";
 
   return (
-    <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${color}`} />
+    <span aria-hidden="true" className={`h-2 w-2 rounded-full ${color}`} />
   );
 }
