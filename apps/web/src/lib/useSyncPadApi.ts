@@ -54,6 +54,23 @@ async function apiErrorMessage(
   return fallback;
 }
 
+async function safeApiErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  if (response.status >= 500) {
+    return fallback;
+  }
+
+  const message = await apiErrorMessage(response, fallback);
+
+  if (/\b(?:database|exception|jwt|stack trace|token template)\b/i.test(message)) {
+    return fallback;
+  }
+
+  return message;
+}
+
 function getBestEmail(user: ReturnType<typeof useUser>["user"]): string | null {
   return (
     user?.primaryEmailAddress?.emailAddress ??
@@ -68,6 +85,13 @@ export function useSyncPadApi() {
 
   const currentUserEmail = getBestEmail(user);
   const isAuthReady = isLoaded && Boolean(isSignedIn) && Boolean(currentUserEmail);
+  const authError = !isLoaded
+    ? null
+    : !isSignedIn
+      ? "Sign in to access your SyncPad documents."
+      : !currentUserEmail
+        ? "Your account needs an email address before you can use SyncPad."
+        : null;
 
   async function getApiHeaders(extraHeaders?: HeadersInit): Promise<HeadersInit> {
     const token = await getToken({
@@ -91,7 +115,9 @@ export function useSyncPadApi() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to load documents");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not load documents."),
+      );
     }
 
     return response.json();
@@ -107,7 +133,9 @@ export function useSyncPadApi() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create document");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not create document."),
+      );
     }
 
     return response.json();
@@ -126,7 +154,9 @@ export function useSyncPadApi() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to rename document");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not save title."),
+      );
     }
 
     return response.json();
@@ -139,7 +169,9 @@ export function useSyncPadApi() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to delete document");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not delete document."),
+      );
     }
   }
 
@@ -155,7 +187,9 @@ export function useSyncPadApi() {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to load document permissions");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not load collaborators."),
+      );
     }
 
     return response.json();
@@ -178,7 +212,9 @@ export function useSyncPadApi() {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to share document");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not share document."),
+      );
     }
 
     return response.json();
@@ -197,7 +233,9 @@ export function useSyncPadApi() {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to remove document permission");
+      throw new Error(
+        await safeApiErrorMessage(response, "Could not remove collaborator."),
+      );
     }
   }
 
@@ -370,6 +408,7 @@ export function useSyncPadApi() {
 
   return {
     isAuthReady,
+    authError,
     currentUserEmail,
     listDocuments,
     createDocument,

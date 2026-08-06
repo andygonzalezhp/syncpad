@@ -38,6 +38,7 @@ export default function CreateCommentComposer({
     <form
       onSubmit={handleSubmit}
       className="rounded-[1.4rem] border border-[#b7d7f0] bg-[#f4faff] p-4 shadow-sm"
+      aria-busy={isSubmitting}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0b5cad]">
         New comment
@@ -53,8 +54,10 @@ export default function CreateCommentComposer({
           autoFocus
           value={message}
           maxLength={10_000}
+          required
+          disabled={isSubmitting}
           onChange={(event) => setMessage(event.target.value)}
-          className="mt-2 min-h-24 w-full resize-y rounded-2xl border border-[#c7d9e7] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#0b5cad]"
+          className="mt-2 min-h-24 w-full resize-y rounded-2xl border border-[#c7d9e7] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#0b5cad] disabled:cursor-not-allowed disabled:bg-[#f5f4f1] disabled:opacity-70"
           placeholder="What would you like collaborators to know?"
         />
       </label>
@@ -64,7 +67,7 @@ export default function CreateCommentComposer({
           type="button"
           disabled={isSubmitting}
           onClick={onCancel}
-          className="rounded-full px-3 py-2 text-sm font-medium text-[#4f555c] transition hover:bg-white disabled:opacity-50"
+          className="min-h-11 rounded-full px-3 py-2 text-sm font-medium text-[#4f555c] transition hover:bg-white disabled:opacity-50"
         >
           Cancel
         </button>
@@ -72,7 +75,7 @@ export default function CreateCommentComposer({
         <button
           type="submit"
           disabled={!message.trim() || isSubmitting}
-          className="rounded-full bg-[#0b5cad] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#084b8d] disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 rounded-full bg-[#0b5cad] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#084b8d] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Adding..." : "Comment"}
         </button>

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SyncPad",
   description:
-    "A real-time collaborative editor with CRDT syncing, role-based sharing, and AI document intelligence.",
+    "Create, share, and edit documents together in real time with SyncPad.",
 };
 
 export default function RootLayout({

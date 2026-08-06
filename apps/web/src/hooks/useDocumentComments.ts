@@ -15,14 +15,70 @@ import {
 import { useSyncPadApi } from "@/lib/useSyncPadApi";
 
 export type CommentMutation =
-  | { kind: "create" }
-  | { kind: "reply" | "status"; threadId: string }
-  | null;
+  | { operationId: string; kind: "create" }
+  | {
+      operationId: string;
+      kind: "reply" | "status";
+      threadId: string;
+    };
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim()
     ? error.message
     : fallback;
+}
+
+function compareThreadFreshness(
+  candidate: CommentThread,
+  existing: CommentThread,
+): number {
+  const candidateTime = Date.parse(candidate.updatedAt);
+  const existingTime = Date.parse(existing.updatedAt);
+
+  if (!Number.isNaN(candidateTime) && !Number.isNaN(existingTime)) {
+    if (candidateTime !== existingTime) {
+      return candidateTime - existingTime;
+    }
+
+    // OffsetDateTime can contain more precision than JavaScript's millisecond
+    // timestamps. Compare the remaining fractional digits when both values fall
+    // within the same JavaScript millisecond.
+    const fractionalRemainder = (timestamp: string) => {
+      const fraction = timestamp.match(
+        /\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/,
+      )?.[1];
+
+      return Number((fraction ?? "").padEnd(9, "0").slice(3, 9) || "0");
+    };
+    const fractionalDifference =
+      fractionalRemainder(candidate.updatedAt) -
+      fractionalRemainder(existing.updatedAt);
+
+    if (fractionalDifference !== 0) {
+      return fractionalDifference;
+    }
+  }
+
+  return candidate.messages.length - existing.messages.length;
+}
+
+function mergeCommentThreads(
+  current: CommentThread[],
+  incoming: CommentThread[],
+): CommentThread[] {
+  const merged = new Map(current.map((thread) => [thread.id, thread]));
+
+  for (const thread of incoming) {
+    const existing = merged.get(thread.id);
+
+    if (!existing || compareThreadFreshness(thread, existing) >= 0) {
+      merged.set(thread.id, thread);
+    }
+  }
+
+  return Array.from(merged.values()).sort(
+    (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt),
+  );
 }
 
 export function useDocumentComments(
@@ -41,18 +97,41 @@ export function useDocumentComments(
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const [mutation, setMutation] = useState<CommentMutation>(null);
+  const [localMutationError, setLocalMutationError] = useState<string | null>(
+    null,
+  );
+  const [realtimeErrors, setRealtimeErrors] = useState<Record<string, string>>(
+    {},
+  );
+  const [mutations, setMutations] = useState<CommentMutation[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [showResolvedComments, setShowResolvedCommentsState] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const listRequestSequence = useRef(0);
+  const dataRevision = useRef(0);
   const realtimeRefreshSequence = useRef(new Map<string, number>());
+  const mutationSequence = useRef(0);
+  const mutationLocks = useRef(new Map<string, string>());
   const activeThreadIdRef = useRef(activeThreadId);
   const showResolvedCommentsRef = useRef(showResolvedComments);
+  const threadsRef = useRef(threads);
+  const currentDocumentIdRef = useRef(documentId);
+
+  if (currentDocumentIdRef.current !== documentId) {
+    currentDocumentIdRef.current = documentId;
+    dataRevision.current = 0;
+    listRequestSequence.current += 1;
+    realtimeRefreshSequence.current.clear();
+    mutationLocks.current.clear();
+  }
 
   activeThreadIdRef.current = activeThreadId;
   showResolvedCommentsRef.current = showResolvedComments;
+  threadsRef.current = threads;
+
+  const realtimeError = Object.values(realtimeErrors)[0] ?? null;
+  const mutationError = localMutationError ?? realtimeError;
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -60,6 +139,9 @@ export function useDocumentComments(
     }
 
     let cancelled = false;
+    const requestId = ++listRequestSequence.current;
+    const revisionAtStart = dataRevision.current;
+    const requestedDocumentId = documentId;
 
     async function load() {
       try {
@@ -68,15 +150,36 @@ export function useDocumentComments(
 
         const comments = await listComments(documentId);
 
-        if (!cancelled) {
-          setThreads(comments);
+        if (
+          !cancelled &&
+          requestId === listRequestSequence.current &&
+          requestedDocumentId === currentDocumentIdRef.current
+        ) {
+          const activeThread = comments.find(
+            (thread) => thread.id === activeThreadIdRef.current,
+          );
+
+          if (
+            activeThread?.status === "RESOLVED" &&
+            !showResolvedCommentsRef.current
+          ) {
+            showResolvedCommentsRef.current = true;
+            setShowResolvedCommentsState(true);
+          }
+
+          setThreads((current) =>
+            dataRevision.current === revisionAtStart
+              ? comments
+              : mergeCommentThreads(current, comments),
+          );
+          setRealtimeErrors({});
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && requestId === listRequestSequence.current) {
           setLoadError(errorMessage(error, "Could not load comments."));
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && requestId === listRequestSequence.current) {
           setIsLoading(false);
         }
       }
@@ -96,6 +199,8 @@ export function useDocumentComments(
       return;
     }
 
+    let cancelled = false;
+
     function handleStatelessMessage({ payload }: onStatelessParameters) {
       const event = parseCommentSyncEvent(payload);
 
@@ -114,6 +219,8 @@ export function useDocumentComments(
           const thread = await getComment(documentId, event.threadId);
 
           if (
+            cancelled ||
+            documentId !== currentDocumentIdRef.current ||
             realtimeRefreshSequence.current.get(event.threadId) !== sequence
           ) {
             commentDebug("stale realtime thread response ignored", {
@@ -124,9 +231,19 @@ export function useDocumentComments(
           }
 
           replaceThread(thread, `realtime:${event.type}`);
-          setMutationError(null);
+          setRealtimeErrors((current) => {
+            if (!(event.threadId in current)) {
+              return current;
+            }
+
+            const next = { ...current };
+            delete next[event.threadId];
+            return next;
+          });
         } catch (error) {
           if (
+            cancelled ||
+            documentId !== currentDocumentIdRef.current ||
             realtimeRefreshSequence.current.get(event.threadId) !== sequence
           ) {
             return;
@@ -136,9 +253,11 @@ export function useDocumentComments(
             ...event,
             error: errorMessage(error, "Unknown realtime refresh error."),
           });
-          setMutationError(
-            "A comment changed in another session, but the update could not be loaded.",
-          );
+          setRealtimeErrors((current) => ({
+            ...current,
+            [event.threadId]:
+              "A comment changed in another session, but the update could not be loaded.",
+          }));
         }
       })();
     }
@@ -146,6 +265,7 @@ export function useDocumentComments(
     provider.on("stateless", handleStatelessMessage);
 
     return () => {
+      cancelled = true;
       provider.off("stateless", handleStatelessMessage);
     };
     // The API hook follows the existing app convention and is safe to use from
@@ -175,6 +295,35 @@ export function useDocumentComments(
   }, [documentId, provider]);
 
   function replaceThread(updatedThread: CommentThread, source: string) {
+    if (updatedThread.documentId !== currentDocumentIdRef.current) {
+      commentDebug("thread update ignored for inactive document", {
+        source,
+        threadId: updatedThread.id,
+        threadDocumentId: updatedThread.documentId,
+        activeDocumentId: currentDocumentIdRef.current,
+      });
+      return;
+    }
+
+    const existingSnapshot = threadsRef.current.find(
+      (thread) => thread.id === updatedThread.id,
+    );
+
+    if (
+      existingSnapshot &&
+      compareThreadFreshness(updatedThread, existingSnapshot) < 0
+    ) {
+      commentDebug("stale thread update ignored", {
+        source,
+        threadId: updatedThread.id,
+        currentUpdatedAt: existingSnapshot.updatedAt,
+        incomingUpdatedAt: updatedThread.updatedAt,
+      });
+      return;
+    }
+
+    dataRevision.current += 1;
+
     if (
       updatedThread.status === "RESOLVED" &&
       !showResolvedCommentsRef.current &&
@@ -188,6 +337,13 @@ export function useDocumentComments(
       const existingIndex = current.findIndex(
         (thread) => thread.id === updatedThread.id,
       );
+
+      if (
+        existingIndex !== -1 &&
+        compareThreadFreshness(updatedThread, current[existingIndex]) < 0
+      ) {
+        return current;
+      }
 
       const next =
         existingIndex === -1
@@ -206,6 +362,44 @@ export function useDocumentComments(
 
       return next;
     });
+  }
+
+  function mutationKey(mutation: CommentMutation): string {
+    return mutation.kind === "create"
+      ? "create"
+      : `thread:${mutation.threadId}`;
+  }
+
+  function beginMutation(
+    mutation:
+      | { kind: "create" }
+      | { kind: "reply" | "status"; threadId: string },
+  ): CommentMutation | null {
+    const operationId = `${documentId}:${++mutationSequence.current}`;
+    const pendingMutation = { ...mutation, operationId } as CommentMutation;
+    const key = mutationKey(pendingMutation);
+
+    if (mutationLocks.current.has(key)) {
+      return null;
+    }
+
+    mutationLocks.current.set(key, operationId);
+    setMutations((current) => [...current, pendingMutation]);
+    return pendingMutation;
+  }
+
+  function finishMutation(mutation: CommentMutation) {
+    const key = mutationKey(mutation);
+
+    if (mutationLocks.current.get(key) === mutation.operationId) {
+      mutationLocks.current.delete(key);
+    }
+
+    setMutations((current) =>
+      current.filter(
+        (pending) => pending.operationId !== mutation.operationId,
+      ),
+    );
   }
 
   function publishCommentEvent(
@@ -229,9 +423,16 @@ export function useDocumentComments(
     selectedText: string,
     message: string,
   ): Promise<CommentThread> {
+    const pendingMutation = beginMutation({ kind: "create" });
+
+    if (!pendingMutation) {
+      throw new Error("A comment is already being added.");
+    }
+
+    const requestedDocumentId = documentId;
+
     try {
-      setMutation({ kind: "create" });
-      setMutationError(null);
+      setLocalMutationError(null);
 
       const thread = await createCommentRequest(
         documentId,
@@ -239,30 +440,41 @@ export function useDocumentComments(
         message.trim(),
       );
 
-      replaceThread(thread, "create");
-      activeThreadIdRef.current = thread.id;
-      setActiveThreadId(thread.id);
-      setIsPanelOpen(true);
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        replaceThread(thread, "create");
+        activeThreadIdRef.current = thread.id;
+        setActiveThreadId(thread.id);
+        setIsPanelOpen(true);
+      }
 
       return thread;
     } catch (error) {
       const messageText = errorMessage(error, "Could not create comment.");
-      setMutationError(messageText);
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        setLocalMutationError(messageText);
+      }
       throw error;
     } finally {
-      setMutation(null);
+      finishMutation(pendingMutation);
     }
   }
 
   async function replyToThread(threadId: string, message: string) {
+    const pendingMutation = beginMutation({ kind: "reply", threadId });
+
+    if (!pendingMutation) {
+      throw new Error("A request for this comment is already in progress.");
+    }
+
+    const requestedDocumentId = documentId;
+
     try {
       commentDebug("reply mutation started", {
         documentId,
         threadId,
         messageLength: message.trim().length,
       });
-      setMutation({ kind: "reply", threadId });
-      setMutationError(null);
+      setLocalMutationError(null);
 
       const thread = await addCommentReply(
         documentId,
@@ -271,25 +483,36 @@ export function useDocumentComments(
       );
 
       commentDebug("reply mutation received API thread", thread);
-      replaceThread(thread, "reply");
-      publishCommentEvent("COMMENT_REPLY_CREATED", thread.id);
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        replaceThread(thread, "reply");
+        publishCommentEvent("COMMENT_REPLY_CREATED", thread.id);
+      }
     } catch (error) {
-      setMutationError(errorMessage(error, "Could not add reply."));
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        setLocalMutationError(errorMessage(error, "Could not add reply."));
+      }
       throw error;
     } finally {
-      setMutation(null);
+      finishMutation(pendingMutation);
     }
   }
 
   async function changeThreadStatus(threadId: string, resolved: boolean) {
+    const pendingMutation = beginMutation({ kind: "status", threadId });
+
+    if (!pendingMutation) {
+      return;
+    }
+
+    const requestedDocumentId = documentId;
+
     try {
       commentDebug("status mutation started", {
         documentId,
         threadId,
         requestedStatus: resolved ? "RESOLVED" : "OPEN",
       });
-      setMutation({ kind: "status", threadId });
-      setMutationError(null);
+      setLocalMutationError(null);
 
       const thread = await setCommentResolved(
         documentId,
@@ -298,27 +521,33 @@ export function useDocumentComments(
       );
 
       commentDebug("status mutation received API thread", thread);
-      replaceThread(thread, resolved ? "resolve" : "reopen");
-      publishCommentEvent(
-        resolved ? "COMMENT_RESOLVED" : "COMMENT_REOPENED",
-        thread.id,
-      );
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        replaceThread(thread, resolved ? "resolve" : "reopen");
+        publishCommentEvent(
+          resolved ? "COMMENT_RESOLVED" : "COMMENT_REOPENED",
+          thread.id,
+        );
+      }
     } catch (error) {
-      setMutationError(
-        errorMessage(
-          error,
-          resolved ? "Could not resolve comment." : "Could not reopen comment.",
-        ),
-      );
+      if (requestedDocumentId === currentDocumentIdRef.current) {
+        setLocalMutationError(
+          errorMessage(
+            error,
+            resolved
+              ? "Could not resolve comment."
+              : "Could not reopen comment.",
+          ),
+        );
+      }
       throw error;
     } finally {
-      setMutation(null);
+      finishMutation(pendingMutation);
     }
   }
 
   function activateThread(threadId: string) {
     if (
-      threads.some(
+      threadsRef.current.some(
         (thread) =>
           thread.id === threadId && thread.status === "RESOLVED",
       )
@@ -337,7 +566,7 @@ export function useDocumentComments(
     setShowResolvedCommentsState(show);
 
     if (!show && activeThreadIdRef.current) {
-      const activeThread = threads.find(
+      const activeThread = threadsRef.current.find(
         (thread) => thread.id === activeThreadIdRef.current,
       );
 
@@ -353,13 +582,13 @@ export function useDocumentComments(
     isLoading,
     loadError,
     mutationError,
-    mutation,
+    mutation: mutations,
     activeThreadId,
     isPanelOpen,
     showResolvedComments,
     setIsPanelOpen,
     setShowResolvedComments: updateShowResolvedComments,
-    setMutationError,
+    setMutationError: setLocalMutationError,
     activateThread,
     createComment,
     publishCommentEvent,

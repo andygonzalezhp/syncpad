@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ChainedCommands, Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -79,6 +87,11 @@ type FindMatch = {
   to: number;
 };
 
+type EditorFeedback = {
+  kind: "success" | "error";
+  message: string;
+};
+
 type MenuName = "file" | "edit" | "view" | "insert" | "format" | "table" | null;
 
 const FONT_FAMILIES = [
@@ -114,7 +127,10 @@ function getAwarenessUser(state: AwarenessState) {
   };
 }
 
-function buildOnlineUsers(awareness: AwarenessState[]): OnlineUser[] {
+function buildOnlineUsers(
+  awareness: AwarenessState[],
+  currentUserEmail: string,
+): OnlineUser[] {
   const usersByKey = new Map<string, OnlineUser>();
 
   for (const state of awareness) {
@@ -138,7 +154,17 @@ function buildOnlineUsers(awareness: AwarenessState[]): OnlineUser[] {
     });
   }
 
-  return Array.from(usersByKey.values());
+  return Array.from(usersByKey.values()).sort((left, right) => {
+    if (left.email === currentUserEmail) {
+      return -1;
+    }
+
+    if (right.email === currentUserEmail) {
+      return 1;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function calculateStats(text: string): EditorStats {
@@ -220,26 +246,6 @@ function applyBlockFormat(editor: Editor | null, value: string) {
       chain.toggleCodeBlock().run();
     }
   });
-}
-
-function setLink(editor: Editor | null) {
-  if (!editor) {
-    return;
-  }
-
-  const previousUrl = editor.getAttributes("link").href as string | undefined;
-  const url = window.prompt("Enter link URL", previousUrl ?? "https://");
-
-  if (url === null) {
-    return;
-  }
-
-  if (!url.trim()) {
-    editor.chain().focus().extendMarkRange("link").unsetLink().run();
-    return;
-  }
-
-  editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
 }
 
 function insertImageByUrl(editor: Editor | null) {
@@ -501,32 +507,47 @@ export default function CollaborativeEditor({
   const [findQuery, setFindQuery] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [showLinkEditor, setShowLinkEditor] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [editorFeedback, setEditorFeedback] = useState<EditorFeedback | null>(
+    null,
+  );
+  const [hasCompletedSync, setHasCompletedSync] = useState(provider.synced);
+  const [isCurrentConnectionSynced, setIsCurrentConnectionSynced] = useState(
+    provider.synced,
+  );
+  const findInputRef = useRef<HTMLInputElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  const activateCommentThreadRef = useRef(comments.activateThread);
 
   const canEdit = currentUserRole === "OWNER" || currentUserRole === "EDITOR";
-  const onlineUsers = buildOnlineUsers(awareness);
+  const onlineUsers = buildOnlineUsers(awareness, currentUser.email);
+
+  useLayoutEffect(() => {
+    activateCommentThreadRef.current = comments.activateThread;
+  }, [comments.activateThread]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      const key = event.key.toLowerCase();
+    function rememberSync() {
+      setHasCompletedSync(true);
+      setIsCurrentConnectionSynced(true);
+    }
 
-      if (event.key === "Escape") {
-        setActiveMenu(null);
-        setShowFindPanel(false);
-      }
-
-      if ((event.metaKey || event.ctrlKey) && key === "f") {
-        event.preventDefault();
-        setActiveMenu(null);
-        setShowFindPanel(true);
+    function resetCurrentSync({ status }: { status: string }) {
+      if (status !== "connected") {
+        setIsCurrentConnectionSynced(false);
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
+    provider.on("synced", rememberSync);
+    provider.on("status", resetCurrentSync);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      provider.off("synced", rememberSync);
+      provider.off("status", resetCurrentSync);
     };
-  }, []);
+  }, [provider]);
 
   const editor = useEditor(
     {
@@ -552,7 +573,7 @@ export default function CollaborativeEditor({
         }),
 
         Link.configure({
-          openOnClick: false,
+          openOnClick: !canEdit,
           autolink: true,
           defaultProtocol: "https",
         }),
@@ -590,7 +611,13 @@ export default function CollaborativeEditor({
       editorProps: {
         attributes: {
           class:
-            "syncpad-editor min-h-[980px] px-[76px] py-[72px] text-[11pt] leading-[1.5] text-[#1d1d1f] outline-none",
+            "syncpad-editor min-h-[65vh] px-5 py-8 text-[11pt] leading-[1.5] text-[#1d1d1f] outline-none sm:px-10 sm:py-12 lg:min-h-[980px] lg:px-[76px] lg:py-[72px]",
+          role: canEdit ? "textbox" : "document",
+          "aria-label": canEdit
+            ? "Collaborative document editor"
+            : "Document content, read only",
+          "aria-multiline": canEdit ? "true" : "false",
+          "aria-readonly": canEdit ? "false" : "true",
         },
         handleClick(_view, _pos, event) {
           const target = event.target;
@@ -605,7 +632,7 @@ export default function CollaborativeEditor({
           const threadId = commentMark?.dataset.commentThreadId;
 
           if (threadId) {
-            comments.activateThread(threadId);
+            activateCommentThreadRef.current(threadId);
           }
 
           return false;
@@ -635,6 +662,173 @@ export default function CollaborativeEditor({
       canEdit,
     ],
   );
+
+  const openLinkEditor = useCallback(() => {
+    if (
+      !editor ||
+      !canEdit ||
+      (editor.state.selection.empty && !editor.isActive("link"))
+    ) {
+      return;
+    }
+
+    const href = editor.getAttributes("link").href as string | undefined;
+
+    setLinkUrl(href ?? "");
+    setLinkError(null);
+    setActiveMenu(null);
+    setShowFindPanel(false);
+    setShowLinkEditor(true);
+  }, [canEdit, editor]);
+
+  const closeLinkEditor = useCallback(
+    (restoreEditorFocus = true) => {
+      setShowLinkEditor(false);
+      setLinkError(null);
+
+      if (restoreEditorFocus) {
+        window.requestAnimationFrame(() => editor?.commands.focus());
+      }
+    },
+    [editor],
+  );
+
+  function handleLinkSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const href = linkUrl.trim();
+
+    if (!editor || !href) {
+      setLinkError("Enter a link destination.");
+      return;
+    }
+
+    const applied = editor
+      .chain()
+      .focus()
+      .extendMarkRange("link")
+      .setLink({ href })
+      .run();
+
+    if (!applied) {
+      setLinkError("That link could not be applied.");
+      return;
+    }
+
+    closeLinkEditor();
+  }
+
+  const removeLink = useCallback(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    closeLinkEditor();
+  }, [closeLinkEditor, editor]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        const shouldRestoreEditorFocus = Boolean(
+          activeMenu || showFindPanel || showLinkEditor,
+        );
+
+        setActiveMenu(null);
+        setShowFindPanel(false);
+        setShowLinkEditor(false);
+
+        if (shouldRestoreEditorFocus) {
+          window.requestAnimationFrame(() => editor?.commands.focus());
+        }
+
+        return;
+      }
+
+      if (
+        !editor ||
+        event.isComposing ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      const isEditorTarget =
+        target instanceof Node && editor.view.dom.contains(target);
+
+      if (!isEditorTarget) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "f") {
+        event.preventDefault();
+        setActiveMenu(null);
+        setShowLinkEditor(false);
+        setShowFindPanel(true);
+        return;
+      }
+
+      if (
+        key === "k" &&
+        canEdit &&
+        (!editor.state.selection.empty || editor.isActive("link"))
+      ) {
+        event.preventDefault();
+        openLinkEditor();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    activeMenu,
+    canEdit,
+    editor,
+    openLinkEditor,
+    showFindPanel,
+    showLinkEditor,
+  ]);
+
+  useEffect(() => {
+    if (!showFindPanel) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [showFindPanel]);
+
+  useEffect(() => {
+    if (!editorFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setEditorFeedback(null), 4_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editorFeedback]);
+
+  useEffect(() => {
+    if (!showLinkEditor) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      linkInputRef.current?.focus();
+      linkInputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [showLinkEditor]);
 
   const commentEditor = useCommentEditorIntegration({
     editor,
@@ -671,6 +865,9 @@ export default function CollaborativeEditor({
   const fontSize = (
     (textStyleAttributes.fontSize as string | undefined) ?? "11px"
   ).replace("px", "");
+  const fontSizeOptions = Array.from(new Set([...FONT_SIZES, fontSize])).sort(
+    (left, right) => Number(left) - Number(right),
+  );
 
   const lineHeight =
     (textStyleAttributes.lineHeight as string | undefined) ?? "1.5";
@@ -689,6 +886,7 @@ export default function CollaborativeEditor({
   const isItalic = Boolean(editor?.isActive("italic"));
   const isUnderline = Boolean(editor?.isActive("underline"));
   const isStrike = Boolean(editor?.isActive("strike"));
+  const isInlineCode = Boolean(editor?.isActive("code"));
   const isSubscript = Boolean(editor?.isActive("subscript"));
   const isSuperscript = Boolean(editor?.isActive("superscript"));
   const isLink = Boolean(editor?.isActive("link"));
@@ -699,10 +897,32 @@ export default function CollaborativeEditor({
   const isCenter = Boolean(editor?.isActive({ textAlign: "center" }));
   const isRight = Boolean(editor?.isActive({ textAlign: "right" }));
   const isJustify = Boolean(editor?.isActive({ textAlign: "justify" }));
+  const canUndo = canEdit && Boolean(editor?.can().undo());
+  const canRedo = canEdit && Boolean(editor?.can().redo());
+  const canToggleInlineCode =
+    canEdit && Boolean(editor?.can().toggleCode());
+  const openCommentCount = comments.threads.filter(
+    (thread) => thread.status === "OPEN",
+  ).length;
+  const resolvedCommentCount = comments.threads.length - openCommentCount;
+  const collaborationLabel =
+    connectionStatus === "disconnected"
+      ? "Offline"
+      : connectionStatus === "connecting"
+        ? hasCompletedSync
+          ? "Reconnecting"
+          : "Connecting"
+        : !isCurrentConnectionSynced
+          ? hasCompletedSync
+            ? "Reconnecting"
+            : "Connecting"
+        : syncStatus === "syncing"
+          ? "Local changes pending"
+          : "Synced";
 
   return (
     <section className="space-y-0">
-      <div className="sticky top-0 z-30 border-b border-[#dedbd3] bg-[#f5f4f1]/95 px-3 pb-3 backdrop-blur-xl md:px-6">
+      <div className="relative z-30 border-b border-[#dedbd3] bg-[#f5f4f1]/95 px-3 pb-3 backdrop-blur-xl md:px-6 lg:sticky lg:top-0">
         <div className="flex flex-wrap items-center gap-1 px-1 py-2 text-[0.95rem] text-[#1d1d1f]">
           <div className="relative">
             <MenuButton
@@ -768,6 +988,7 @@ export default function CollaborativeEditor({
                   label="Find and replace"
                   shortcut="⌘F"
                   onClick={() => {
+                    setShowLinkEditor(false);
                     setShowFindPanel(true);
                     setActiveMenu(null);
                   }}
@@ -787,8 +1008,20 @@ export default function CollaborativeEditor({
                   label="Copy plain text"
                   shortcut="⌘C"
                   onClick={() => {
-                    copyPlainText(editor);
                     setActiveMenu(null);
+                    void copyPlainText(editor)
+                      .then(() => {
+                        setEditorFeedback({
+                          kind: "success",
+                          message: "Document text copied.",
+                        });
+                      })
+                      .catch(() => {
+                        setEditorFeedback({
+                          kind: "error",
+                          message: "Couldn’t copy the document text.",
+                        });
+                      });
                   }}
                 />
 
@@ -874,11 +1107,10 @@ export default function CollaborativeEditor({
 
                 <DropdownItem
                   label="Link"
-                  disabled={!canEdit}
+                  disabled={!canEdit || (!hasSelection && !isLink)}
                   shortcut="⌘K"
                   onClick={() => {
-                    setLink(editor);
-                    setActiveMenu(null);
+                    openLinkEditor();
                   }}
                 />
 
@@ -1122,7 +1354,7 @@ export default function CollaborativeEditor({
             />
 
             {activeMenu === "table" && (
-              <DropdownMenu>
+              <DropdownMenu align="right">
                 <DropdownItem
                   label="Insert 3 × 3 table"
                   disabled={!canEdit}
@@ -1240,15 +1472,44 @@ export default function CollaborativeEditor({
               </DropdownMenu>
             )}
           </div>
+
+          <div
+            role="status"
+            aria-live="polite"
+            className="ml-auto flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#4f555c] ring-1 ring-[#dedbd3]"
+          >
+            <ConnectionIndicator status={connectionStatus} />
+            <span>{collaborationLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {onlineUsers.length} {onlineUsers.length === 1 ? "person" : "people"}
+            </span>
+          </div>
+
+          {editorFeedback && (
+            <span
+              role={editorFeedback.kind === "error" ? "alert" : "status"}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                editorFeedback.kind === "error"
+                  ? "bg-red-50 text-red-700 ring-1 ring-red-200"
+                  : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+              }`}
+            >
+              {editorFeedback.message}
+            </span>
+          )}
         </div>
 
-        <div className="rounded-[2rem] border border-[#dedbd3] bg-[#ebe9e4]/90 px-4 py-3 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="rounded-[2rem] border border-[#dedbd3] bg-[#ebe9e4]/90 p-2 shadow-sm sm:px-4 sm:py-3">
+          <div
+            role="toolbar"
+            aria-label="Document formatting"
+            className="flex flex-wrap items-center gap-x-1 gap-y-2"
+          >
             <ToolbarButton
               label="↶"
-              title="Undo"
-              active={false}
-              disabled={!canEdit}
+              title="Undo (Ctrl/⌘+Z)"
+              disabled={!canUndo}
               onClick={() =>
                 runCommand(editor, (chain) => chain.undo().run())
               }
@@ -1256,9 +1517,8 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="↷"
-              title="Redo"
-              active={false}
-              disabled={!canEdit}
+              title="Redo (Ctrl/⌘+Shift+Z)"
+              disabled={!canRedo}
               onClick={() =>
                 runCommand(editor, (chain) => chain.redo().run())
               }
@@ -1267,7 +1527,6 @@ export default function CollaborativeEditor({
             <ToolbarButton
               label="Print"
               title="Print"
-              active={false}
               disabled={false}
               onClick={() => window.print()}
             />
@@ -1277,13 +1536,16 @@ export default function CollaborativeEditor({
               title="Find and replace"
               active={showFindPanel}
               disabled={false}
-              onClick={() => setShowFindPanel((current) => !current)}
+              onClick={() => {
+                setShowLinkEditor(false);
+                setShowFindPanel((current) => !current);
+              }}
             />
 
             <ToolbarButton
               label={
                 comments.threads.length > 0
-                  ? `Comments (${comments.threads.length})`
+                  ? `Comments (${openCommentCount} open · ${resolvedCommentCount} resolved)`
                   : "Comments"
               }
               title="Show document comments"
@@ -1297,6 +1559,7 @@ export default function CollaborativeEditor({
             <ToolbarDivider />
 
             <ToolbarSelect
+              ariaLabel="Document zoom"
               value={zoom}
               disabled={false}
               onChange={setZoom}
@@ -1308,6 +1571,7 @@ export default function CollaborativeEditor({
             />
 
             <ToolbarSelect
+              ariaLabel="Block style"
               value={blockFormat}
               disabled={!canEdit}
               onChange={(value) => applyBlockFormat(editor, value)}
@@ -1323,6 +1587,7 @@ export default function CollaborativeEditor({
             />
 
             <ToolbarSelect
+              ariaLabel="Font family"
               value={fontFamily}
               disabled={!canEdit}
               onChange={(value) =>
@@ -1334,7 +1599,7 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="−"
-              active={false}
+              title="Decrease font size"
               disabled={!canEdit}
               onClick={() => {
                 const current = Number(fontSize);
@@ -1347,6 +1612,7 @@ export default function CollaborativeEditor({
             />
 
             <ToolbarSelect
+              ariaLabel="Font size"
               value={fontSize}
               disabled={!canEdit}
               onChange={(value) =>
@@ -1354,7 +1620,7 @@ export default function CollaborativeEditor({
                   chain.setFontSize(`${value}px`).run(),
                 )
               }
-              options={FONT_SIZES.map((size) => ({
+              options={fontSizeOptions.map((size) => ({
                 value: size,
                 label: size,
               }))}
@@ -1363,7 +1629,7 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="+"
-              active={false}
+              title="Increase font size"
               disabled={!canEdit}
               onClick={() => {
                 const current = Number(fontSize);
@@ -1376,6 +1642,7 @@ export default function CollaborativeEditor({
             />
 
             <ToolbarSelect
+              ariaLabel="Line spacing"
               value={lineHeight}
               disabled={!canEdit}
               onChange={(value) =>
@@ -1392,7 +1659,7 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="B"
-              title="Bold"
+              title="Bold (Ctrl/⌘+B)"
               active={isBold}
               disabled={!canEdit}
               onClick={() =>
@@ -1402,7 +1669,7 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="I"
-              title="Italic"
+              title="Italic (Ctrl/⌘+I)"
               active={isItalic}
               disabled={!canEdit}
               onClick={() =>
@@ -1412,7 +1679,7 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="U"
-              title="Underline"
+              title="Underline (Ctrl/⌘+U)"
               active={isUnderline}
               disabled={!canEdit}
               onClick={() =>
@@ -1427,6 +1694,16 @@ export default function CollaborativeEditor({
               disabled={!canEdit}
               onClick={() =>
                 runCommand(editor, (chain) => chain.toggleStrike().run())
+              }
+            />
+
+            <ToolbarButton
+              label="Code"
+              title="Inline code (Ctrl/⌘+E)"
+              active={isInlineCode}
+              disabled={!canToggleInlineCode}
+              onClick={() =>
+                runCommand(editor, (chain) => chain.toggleCode().run())
               }
             />
 
@@ -1454,6 +1731,7 @@ export default function CollaborativeEditor({
               A
               <input
                 type="color"
+                aria-label="Text color"
                 disabled={!canEdit}
                 className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
                 onChange={(event) =>
@@ -1468,6 +1746,7 @@ export default function CollaborativeEditor({
               Fill
               <input
                 type="color"
+                aria-label="Text highlight color"
                 disabled={!canEdit}
                 defaultValue="#fff3a3"
                 className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
@@ -1483,16 +1762,15 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="Link"
-              title="Add link"
+              title={isLink ? "Edit link (Ctrl/⌘+K)" : "Add link (Ctrl/⌘+K)"}
               active={isLink}
-              disabled={!canEdit}
-              onClick={() => setLink(editor)}
+              disabled={!canEdit || (!hasSelection && !isLink)}
+              onClick={openLinkEditor}
             />
 
             <ToolbarButton
               label="Image"
               title="Insert image by URL"
-              active={false}
               disabled={!canEdit}
               onClick={() => insertImageByUrl(editor)}
             />
@@ -1574,7 +1852,6 @@ export default function CollaborativeEditor({
 
             <ToolbarButton
               label="Table"
-              active={false}
               disabled={!canEdit}
               onClick={() =>
                 runCommand(editor, (chain) =>
@@ -1591,11 +1868,69 @@ export default function CollaborativeEditor({
           </div>
         </div>
 
+        {showLinkEditor && canEdit && (
+          <form
+            aria-label="Edit link"
+            onSubmit={handleLinkSubmit}
+            className="mt-3 rounded-[1.35rem] border border-[#dedbd3] bg-white p-3 shadow-sm"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="min-w-0 flex-1 text-sm font-medium text-[#343438]">
+                Link destination
+                <input
+                  ref={linkInputRef}
+                  value={linkUrl}
+                  inputMode="url"
+                  autoComplete="url"
+                  onChange={(event) => {
+                    setLinkUrl(event.target.value);
+                    setLinkError(null);
+                  }}
+                  className="mt-1 min-h-10 w-full rounded-full border border-[#dedbd3] px-4 text-sm outline-none focus:border-[#1d1d1f] focus-visible:ring-2 focus-visible:ring-[#b7d7f0]"
+                  placeholder="https://example.com"
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={!linkUrl.trim()}
+                  className="rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-medium text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Apply link
+                </button>
+
+                {isLink && (
+                  <SmallButton onClick={removeLink}>Remove link</SmallButton>
+                )}
+
+                <SmallButton onClick={() => closeLinkEditor()}>
+                  Cancel
+                </SmallButton>
+              </div>
+            </div>
+
+            {linkError && (
+              <p role="alert" className="mt-2 text-sm text-red-700">
+                {linkError}
+              </p>
+            )}
+          </form>
+        )}
+
         {showFindPanel && (
-          <div className="mt-3 rounded-[1.35rem] border border-[#dedbd3] bg-white p-3 shadow-sm">
+          <div
+            role="search"
+            className="mt-3 rounded-[1.35rem] border border-[#dedbd3] bg-white p-3 shadow-sm"
+          >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-2">
+                <label htmlFor="syncpad-find" className="sr-only">
+                  Find in document
+                </label>
                 <input
+                  ref={findInputRef}
+                  id="syncpad-find"
                   value={findQuery}
                   onChange={(event) => {
                     setFindQuery(event.target.value);
@@ -1606,6 +1941,8 @@ export default function CollaborativeEditor({
                       return;
                     }
 
+                    event.preventDefault();
+
                     const next = (safeCurrentMatchIndex + 1) % findMatches.length;
 
                     setCurrentMatchIndex(next);
@@ -1615,7 +1952,11 @@ export default function CollaborativeEditor({
                   placeholder="Find"
                 />
 
+                <label htmlFor="syncpad-replace" className="sr-only">
+                  Replace with
+                </label>
                 <input
+                  id="syncpad-replace"
                   value={replaceText}
                   onChange={(event) => setReplaceText(event.target.value)}
                   className="min-h-10 min-w-0 flex-1 rounded-full border border-[#dedbd3] px-4 text-sm outline-none focus:border-[#1d1d1f]"
@@ -1625,7 +1966,7 @@ export default function CollaborativeEditor({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-[#6e6e73]">
+                <span aria-live="polite" className="text-sm text-[#6e6e73]">
                   {findMatches.length > 0
                     ? `${safeCurrentMatchIndex + 1} of ${findMatches.length}`
                     : "No matches"}
@@ -1685,7 +2026,12 @@ export default function CollaborativeEditor({
                   Replace all
                 </button>
 
-                <SmallButton onClick={() => setShowFindPanel(false)}>
+                <SmallButton
+                  onClick={() => {
+                    setShowFindPanel(false);
+                    window.requestAnimationFrame(() => editor?.commands.focus());
+                  }}
+                >
                   Close
                 </SmallButton>
               </div>
@@ -1757,14 +2103,8 @@ export default function CollaborativeEditor({
                   <div className="mt-3 flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <ConnectionIndicator status={connectionStatus} />
-                      <span>{connectionLabel(connectionStatus)}</span>
+                      <span>{collaborationLabel}</span>
                     </div>
-
-                    <p>
-                      {syncStatus === "synced"
-                        ? "All changes saved"
-                        : "Saving..."}
-                    </p>
 
                     <p>
                       {stats.words} {stats.words === 1 ? "word" : "words"} ·{" "}
@@ -1790,7 +2130,30 @@ export default function CollaborativeEditor({
                             className="h-2.5 w-2.5 rounded-full"
                             style={{ backgroundColor: user.color }}
                           />
-                          <span className="truncate">{user.name}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">
+                              {user.name}
+                              {user.email === currentUser.email ? " (You)" : ""}
+                            </span>
+                            {user.email && (
+                              <span className="block truncate text-xs text-[#6e6e73]">
+                                {user.email}
+                              </span>
+                            )}
+                          </span>
+                          {user.role && (
+                            <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#4f555c] ring-1 ring-[#dedbd3]">
+                              {user.role.toLowerCase()}
+                            </span>
+                          )}
+                          {user.clientCount > 1 && (
+                            <span
+                              className="shrink-0 text-xs text-[#6e6e73]"
+                              title={`${user.clientCount} active browser sessions`}
+                            >
+                              ×{user.clientCount}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1829,7 +2192,7 @@ export default function CollaborativeEditor({
                   Italic
                 </SmallButton>
 
-                <SmallButton onClick={() => setLink(editor)}>Link</SmallButton>
+                <SmallButton onClick={openLinkEditor}>Link</SmallButton>
 
                 <SmallButton
                   onClick={() =>
@@ -1847,18 +2210,25 @@ export default function CollaborativeEditor({
               </div>
             )}
 
-            <div
-              className={`mx-auto bg-white transition-shadow ${
-                printLayout
-                  ? "max-w-[1110px] rounded-sm border border-[#dedbd3] shadow-[0_12px_48px_rgba(0,0,0,0.10)]"
-                  : "max-w-[1200px] rounded-[2rem] border border-[#dedbd3] shadow-sm"
-              }`}
-              style={{
-                transform: `scale(${Number(zoom) / 100})`,
-                transformOrigin: "top center",
-              }}
-            >
-              <EditorContent editor={editor} />
+            <div className="overflow-x-auto pb-2">
+              <div
+                className={`relative mx-auto bg-white transition-shadow ${
+                  printLayout
+                    ? "max-w-[1110px] rounded-sm border border-[#dedbd3] shadow-[0_12px_48px_rgba(0,0,0,0.10)]"
+                    : "max-w-[1200px] rounded-[2rem] border border-[#dedbd3] shadow-sm"
+                }`}
+                style={{ zoom: `${zoom}%` }}
+              >
+                {editor?.isEmpty && (
+                  <p className="pointer-events-none absolute left-5 top-8 z-10 text-[11pt] text-[#86868b] sm:left-10 sm:top-12 lg:left-[76px] lg:top-[72px]">
+                    {canEdit
+                      ? "Start writing your document…"
+                      : "This document is empty."}
+                  </p>
+                )}
+
+                <EditorContent editor={editor} />
+              </div>
             </div>
           </div>
 
@@ -1902,8 +2272,10 @@ function MenuButton({
   return (
     <button
       type="button"
+      aria-expanded={active}
+      aria-haspopup="true"
       onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-sm transition ${
+      className={`rounded-full px-3 py-1.5 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] ${
         active
           ? "bg-white text-[#1d1d1f] shadow-sm"
           : "text-[#1d1d1f] hover:bg-white/70"
@@ -1914,9 +2286,21 @@ function MenuButton({
   );
 }
 
-function DropdownMenu({ children }: { children: React.ReactNode }) {
+function DropdownMenu({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
   return (
-    <div className="absolute left-0 top-9 z-50 w-[340px] rounded-[1.2rem] border border-[#dedbd3] bg-white py-2 shadow-[0_18px_60px_rgba(0,0,0,0.18)]">
+    <div
+      role="group"
+      aria-label="Document commands"
+      className={`fixed inset-x-4 top-[4.25rem] z-50 max-h-[calc(100vh-5.25rem)] overflow-y-auto rounded-[1.2rem] border border-[#dedbd3] bg-white py-2 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:absolute sm:inset-x-auto sm:top-9 sm:w-[min(340px,calc(100vw-2rem))] ${
+        align === "right" ? "sm:right-0" : "sm:left-0"
+      }`}
+    >
       {children}
     </div>
   );
@@ -1925,7 +2309,7 @@ function DropdownMenu({ children }: { children: React.ReactNode }) {
 function DropdownItem({
   label,
   shortcut,
-  checked = false,
+  checked,
   disabled = false,
   onClick,
 }: {
@@ -1938,9 +2322,10 @@ function DropdownItem({
   return (
     <button
       type="button"
+      aria-pressed={checked}
       disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-sm text-[#1d1d1f] transition hover:bg-[#f5f4f1] disabled:cursor-not-allowed disabled:text-[#b8b9ba]"
+      className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-sm text-[#1d1d1f] transition hover:bg-[#f5f4f1] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:text-[#b8b9ba]"
     >
       <span className="flex items-center gap-3">
         <span className="w-4 text-center text-[#6e6e73]">
@@ -1976,7 +2361,7 @@ function ToolbarButton({
 }: {
   label: string;
   title?: string;
-  active: boolean;
+  active?: boolean;
   disabled: boolean;
   onClick: () => void;
 }) {
@@ -1984,9 +2369,11 @@ function ToolbarButton({
     <button
       type="button"
       title={title ?? label}
+      aria-label={title ?? label}
+      aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`h-10 rounded-full px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
+      className={`h-10 shrink-0 rounded-full px-3 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-35 ${
         active
           ? "bg-[#1d1d1f] text-white"
           : "text-[#1d1d1f] hover:bg-white/80"
@@ -1998,12 +2385,14 @@ function ToolbarButton({
 }
 
 function ToolbarSelect({
+  ariaLabel,
   value,
   disabled,
   options,
   onChange,
   className = "",
 }: {
+  ariaLabel: string;
   value: string;
   disabled: boolean;
   options: Array<{
@@ -2015,10 +2404,11 @@ function ToolbarSelect({
 }) {
   return (
     <select
+      aria-label={ariaLabel}
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className={`h-10 rounded-full border border-transparent bg-transparent px-3 text-sm font-medium text-[#1d1d1f] outline-none transition hover:bg-white/80 focus:border-[#dedbd3] focus:bg-white disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`h-10 shrink-0 rounded-full border border-transparent bg-transparent px-3 text-sm font-medium text-[#1d1d1f] outline-none transition hover:bg-white/80 focus:border-[#dedbd3] focus:bg-white focus-visible:ring-2 focus-visible:ring-[#b7d7f0] disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
@@ -2042,7 +2432,7 @@ function SmallButton({
     <button
       type="button"
       disabled={disabled}
-      className="rounded-full border border-[#dedbd3] bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition hover:bg-[#f5f4f1] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-full border border-[#dedbd3] bg-white px-4 py-2 text-sm font-medium text-[#1d1d1f] transition hover:bg-[#f5f4f1] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d1d1f] disabled:cursor-not-allowed disabled:opacity-40"
       onClick={onClick}
     >
       {children}
@@ -2051,7 +2441,7 @@ function SmallButton({
 }
 
 function ToolbarDivider() {
-  return <div className="mx-1 h-6 w-px bg-[#d0cec7]" />;
+  return <div aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[#d0cec7]" />;
 }
 
 function ConnectionIndicator({ status }: { status: string }) {
@@ -2062,18 +2452,7 @@ function ConnectionIndicator({ status }: { status: string }) {
         ? "bg-yellow-500"
         : "bg-red-500";
 
-  return <span className={`h-2.5 w-2.5 rounded-full ${color}`} />;
-}
-
-function connectionLabel(status: string) {
-  switch (status) {
-    case "connected":
-      return "Connected";
-    case "connecting":
-      return "Connecting...";
-    case "disconnected":
-      return "Disconnected";
-    default:
-      return status;
-  }
+  return (
+    <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${color}`} />
+  );
 }

@@ -1,9 +1,13 @@
 import "dotenv/config";
 
 import { verifyToken } from "@clerk/backend";
-import { Server } from "@hocuspocus/server";
+import {
+  Server,
+  type Connection,
+  type onAuthenticatePayload,
+} from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
-import pg from "pg";
+import pg, { type PoolClient } from "pg";
 import { parseCommentSyncEvent } from "./commentEvents.js";
 
 const { Pool } = pg;
@@ -17,6 +21,13 @@ type CollabUserContext = {
     name: string;
     role: DocumentRole;
   };
+  permissionRevalidated: boolean;
+  permissionRevalidation: Promise<void> | null;
+};
+
+type PermissionChangeEvent = {
+  documentId: string;
+  userId: string;
 };
 
 type ClerkClaims = {
@@ -25,14 +36,7 @@ type ClerkClaims = {
   name?: string | null;
 };
 
-type RuntimeAuthenticatePayload = {
-  documentName?: string;
-  token?: unknown;
-  connection?: {
-    readOnly?: boolean;
-  };
-  requestParameters?: URLSearchParams | Map<string, string> | Record<string, string>;
-};
+type RuntimeAuthenticatePayload = onAuthenticatePayload<CollabUserContext>;
 
 const port = Number(process.env.PORT ?? 1234);
 
@@ -41,6 +45,10 @@ const databaseUrl =
   "postgresql://syncpad:syncpad@localhost:5432/syncpad";
 
 const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+const permissionChangeChannel = "syncpad_permission_changes";
+const accessChangedReason = "Document access changed. Refresh to continue.";
+const accessVerificationReason =
+  "Document access could not be verified. Refresh to continue.";
 
 if (!clerkSecretKey) {
   throw new Error("Missing CLERK_SECRET_KEY for collab server.");
@@ -49,6 +57,14 @@ if (!clerkSecretKey) {
 const pool = new Pool({
   connectionString: databaseUrl,
   max: 10,
+});
+
+let permissionListener: PoolClient | null = null;
+let isShuttingDown = false;
+
+pool.on("error", (error) => {
+  console.error("[database:pool:error]", error);
+  void shutdown(1);
 });
 
 function isUuid(value: string): boolean {
@@ -61,6 +77,45 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function isDocumentRole(value: unknown): value is DocumentRole {
+  return value === "OWNER" || value === "EDITOR" || value === "VIEWER";
+}
+
+function hasPostgresErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
+}
+
+function parsePermissionChange(payload: string | undefined): PermissionChangeEvent | null {
+  if (!payload || payload.length > 512) {
+    return null;
+  }
+
+  try {
+    const value = JSON.parse(payload) as Record<string, unknown>;
+
+    if (
+      typeof value.documentId !== "string" ||
+      !isUuid(value.documentId) ||
+      typeof value.userId !== "string" ||
+      !isUuid(value.userId)
+    ) {
+      return null;
+    }
+
+    return {
+      documentId: value.documentId,
+      userId: value.userId,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function displayDebugKeys(value: unknown): string[] {
   if (!value || typeof value !== "object") {
     return [];
@@ -70,7 +125,7 @@ function displayDebugKeys(value: unknown): string[] {
 }
 
 function getDocumentName(data: RuntimeAuthenticatePayload): string {
-  if (typeof data.documentName === "string") {
+  if (typeof data.documentName === "string" && data.documentName) {
     return data.documentName;
   }
 
@@ -86,30 +141,10 @@ function getRawToken(data: RuntimeAuthenticatePayload): string {
 
   const params = data.requestParameters;
 
-  if (params instanceof URLSearchParams) {
-    const token = params.get("token");
+  const requestToken = params.get("token");
 
-    if (token) {
-      return token;
-    }
-  }
-
-  if (params instanceof Map) {
-    const token = params.get("token");
-
-    if (token) {
-      return token;
-    }
-  }
-
-  if (
-    params &&
-    typeof params === "object" &&
-    "token" in params &&
-    typeof params.token === "string" &&
-    params.token.trim()
-  ) {
-    return params.token.trim();
+  if (requestToken) {
+    return requestToken;
   }
 
   throw new Error("Missing collaboration auth token.");
@@ -123,6 +158,99 @@ async function verifyClerkJwt(rawToken: string): Promise<ClerkClaims> {
   return claims as ClerkClaims;
 }
 
+async function findCurrentPermissionRole(
+  documentId: string,
+  userId: string,
+): Promise<DocumentRole | null> {
+  const result = await pool.query(
+    `
+    SELECT role
+    FROM document_permissions
+    WHERE document_id = $1::uuid
+    AND user_id = $2::uuid
+    `,
+    [documentId, userId],
+  );
+  const role = result.rows[0]?.role;
+
+  return isDocumentRole(role) ? role : null;
+}
+
+function accessGuardError(reason: string) {
+  return Object.assign(new Error(reason), {
+    code: 4403,
+    reason,
+  });
+}
+
+function closeForAccessChange(
+  connection: Connection<CollabUserContext>,
+  reason: string,
+) {
+  connection.readOnly = true;
+  connection.webSocket.close(4403, reason);
+}
+
+async function revalidateRegisteredConnection(
+  documentName: string,
+  context: CollabUserContext,
+  connection: Connection<CollabUserContext>,
+) {
+  // Hocuspocus authenticates before it registers the Connection. Rechecking
+  // once after registration closes the notification gap: earlier commits are
+  // visible to this query, while later commits are caught by PostgreSQL NOTIFY.
+  if (context.permissionRevalidated) {
+    return;
+  }
+
+  if (!context.permissionRevalidation) {
+    context.permissionRevalidation = (async () => {
+      let currentRole: DocumentRole | null;
+
+      try {
+        currentRole = await findCurrentPermissionRole(
+          documentName,
+          context.user.id,
+        );
+      } catch (error) {
+        console.error("[permission:revalidation:error]", {
+          documentName,
+          userId: context.user.id,
+          error,
+        });
+        closeForAccessChange(connection, accessVerificationReason);
+        throw accessGuardError(accessVerificationReason);
+      }
+
+      const expectedReadOnly = currentRole === "VIEWER";
+
+      if (
+        currentRole !== context.user.role ||
+        connection.readOnly !== expectedReadOnly
+      ) {
+        console.warn("[permission:revalidation:rejected]", {
+          documentName,
+          userId: context.user.id,
+          authenticatedRole: context.user.role,
+          currentRole,
+          connectionReadOnly: connection.readOnly,
+        });
+        closeForAccessChange(connection, accessChangedReason);
+        throw accessGuardError(accessChangedReason);
+      }
+
+      context.permissionRevalidated = true;
+      console.log("[permission:revalidation:success]", {
+        documentName,
+        userId: context.user.id,
+        role: currentRole,
+      });
+    })();
+  }
+
+  await context.permissionRevalidation;
+}
+
 function getEmailFromClaims(claims: ClerkClaims): string {
   if (!claims.email) {
     throw new Error(
@@ -133,20 +261,19 @@ function getEmailFromClaims(claims: ClerkClaims): string {
   return normalizeEmail(claims.email);
 }
 
-const server = new Server({
+const server = new Server<CollabUserContext>({
   name: "syncpad-collab",
   port,
+  stopOnSignals: false,
 
   debounce: 2000,
   maxDebounce: 10000,
 
-  async onAuthenticate(data: unknown): Promise<CollabUserContext> {
-    const authData = data as RuntimeAuthenticatePayload;
-
+  async onAuthenticate(authData): Promise<CollabUserContext> {
     try {
       const documentName = getDocumentName(authData);
 
-      if (!isUuid(documentName)) {
+      if (!isUuid(documentName) || documentName !== documentName.toLowerCase()) {
         throw new Error(`Invalid document room: ${documentName}`);
       }
 
@@ -158,7 +285,7 @@ const server = new Server({
         documentName,
         email,
         subject: claims.sub,
-        hasConnection: Boolean(authData.connection),
+        hasConnectionConfig: Boolean(authData.connectionConfig),
         payloadKeys: displayDebugKeys(authData),
       });
 
@@ -189,18 +316,18 @@ const server = new Server({
         throw new Error(`No permission row for ${email} on ${documentName}`);
       }
 
-      const role = user.role as DocumentRole;
+      const role = user.role;
+
+      if (!isDocumentRole(role)) {
+        throw new Error(`Invalid permission role for ${email} on ${documentName}`);
+      }
 
       if (role === "VIEWER") {
-        if (!authData.connection) {
-          authData.connection = {};
-        }
-
-        authData.connection.readOnly = true;
+        authData.connectionConfig.readOnly = true;
       }
 
       console.log(
-        `[auth:success] document=${documentName} user=${user.email} role=${role} readOnly=${authData.connection?.readOnly ?? false}`,
+        `[auth:success] document=${documentName} user=${user.email} role=${role} readOnly=${authData.connectionConfig.readOnly}`,
       );
 
       return {
@@ -210,11 +337,21 @@ const server = new Server({
           name: user.display_name,
           role,
         },
+        permissionRevalidated: false,
+        permissionRevalidation: null,
       };
     } catch (error) {
       console.error("[auth:error]", error);
       throw error;
     }
+  },
+
+  async beforeHandleMessage({ connection, context, documentName }) {
+    await revalidateRegisteredConnection(documentName, context, connection);
+  },
+
+  async connected({ connection, context, documentName }) {
+    await revalidateRegisteredConnection(documentName, context, connection);
   },
 
   extensions: [
@@ -224,7 +361,7 @@ const server = new Server({
           `
           SELECT state
           FROM document_states
-          WHERE document_name = $1
+          WHERE document_id = $1::uuid
           `,
           [documentName],
         );
@@ -242,29 +379,63 @@ const server = new Server({
       },
 
       async store({ documentName, state }) {
+        if (!isUuid(documentName)) {
+          console.warn("[store:ignored]", {
+            documentName,
+            reason: "invalid document id",
+          });
+          return;
+        }
+
         const buffer = Buffer.from(state);
+        let result;
 
-        await pool.query(
-          `
-          INSERT INTO document_states (document_name, state, created_at, updated_at)
-          VALUES ($1, $2, NOW(), NOW())
-          ON CONFLICT (document_name)
-          DO UPDATE SET
-            state = EXCLUDED.state,
-            updated_at = NOW()
-          `,
-          [documentName, buffer],
-        );
-
-        if (isUuid(documentName)) {
-          await pool.query(
+        try {
+          result = await pool.query(
             `
+            WITH stored_state AS (
+              INSERT INTO document_states (
+                document_name,
+                document_id,
+                state,
+                created_at,
+                updated_at
+              )
+              SELECT $1, $1::uuid, $2, NOW(), NOW()
+              FROM documents
+              WHERE id = $1::uuid
+              ON CONFLICT (document_id)
+              DO UPDATE SET
+                state = EXCLUDED.state,
+                updated_at = NOW()
+              RETURNING document_name
+            )
             UPDATE documents
             SET updated_at = NOW()
             WHERE id = $1::uuid
+            AND EXISTS (SELECT 1 FROM stored_state)
+            RETURNING id
             `,
-            [documentName],
+            [documentName, buffer],
           );
+        } catch (error) {
+          if (hasPostgresErrorCode(error, "23503")) {
+            console.warn("[store:ignored]", {
+              documentName,
+              reason: "document was deleted during persistence",
+            });
+            return;
+          }
+
+          throw error;
+        }
+
+        if (result.rowCount === 0) {
+          console.warn("[store:ignored]", {
+            documentName,
+            reason: "document no longer exists",
+          });
+          return;
         }
 
         console.log(`[store] document=${documentName} bytes=${buffer.length}`);
@@ -285,17 +456,43 @@ const server = new Server({
     }
 
     const context = connection.context as CollabUserContext | undefined;
-    const role = context?.user.role;
+
+    if (!context?.user.id || !isUuid(documentName)) {
+      console.warn("[comment:event:ignored]", {
+        documentName,
+        threadId: event.threadId,
+        type: event.type,
+        reason: "missing authenticated context",
+      });
+      return;
+    }
+
+    const authorization = await pool.query(
+      `
+      SELECT document_permissions.role
+      FROM document_permissions
+      JOIN comment_threads
+        ON comment_threads.document_id = document_permissions.document_id
+      WHERE document_permissions.document_id = $1::uuid
+      AND document_permissions.user_id = $2::uuid
+      AND comment_threads.id = $3::uuid
+      `,
+      [documentName, context.user.id, event.threadId],
+    );
+
+    const role = authorization.rows[0]?.role as DocumentRole | undefined;
 
     if (role !== "OWNER" && role !== "EDITOR") {
       console.warn("[comment:event:ignored]", {
         documentName,
         threadId: event.threadId,
         type: event.type,
-        reason: "sender cannot mutate comments",
+        reason: "sender cannot mutate comments or thread is outside this room",
       });
       return;
     }
+
+    context.user.role = role;
 
     const canonicalPayload = JSON.stringify(event);
     let recipientCount = 0;
@@ -331,20 +528,111 @@ const server = new Server({
   },
 });
 
-server.listen();
+async function listenForPermissionChanges() {
+  const listener = await pool.connect();
+  permissionListener = listener;
 
-console.log(`SyncPad collaboration server running on ws://localhost:${port}`);
+  listener.on("notification", (notification) => {
+    if (notification.channel !== permissionChangeChannel) {
+      return;
+    }
 
-async function shutdown() {
+    const event = parsePermissionChange(notification.payload);
+
+    if (!event) {
+      console.warn("[permission:change:ignored]", {
+        reason: "invalid payload",
+      });
+      return;
+    }
+
+    const document = server.hocuspocus.documents.get(event.documentId);
+
+    if (!document) {
+      return;
+    }
+
+    let closedConnections = 0;
+
+    document.getConnections().forEach((connection) => {
+      const context = connection.context as CollabUserContext | undefined;
+
+      if (context?.user.id !== event.userId) {
+        return;
+      }
+
+      closedConnections += 1;
+      connection.readOnly = true;
+      connection.webSocket.close(4403, accessChangedReason);
+    });
+
+    if (closedConnections > 0) {
+      console.log("[permission:change:connections-closed]", {
+        documentName: event.documentId,
+        userId: event.userId,
+        closedConnections,
+      });
+    }
+  });
+
+  listener.on("error", (error) => {
+    console.error("[permission:listener:error]", error);
+
+    if (permissionListener === listener) {
+      permissionListener = null;
+      listener.release(error);
+    }
+
+    void shutdown(1);
+  });
+
+  await listener.query(`LISTEN ${permissionChangeChannel}`);
+  console.log(`[permission:listener] channel=${permissionChangeChannel}`);
+}
+
+async function start() {
+  await listenForPermissionChanges();
+  await server.listen();
+  console.log(`SyncPad collaboration server running on ws://localhost:${port}`);
+}
+
+async function shutdown(exitCode = 0) {
+  if (isShuttingDown) {
+    return;
+  }
+
+  isShuttingDown = true;
   console.log("Shutting down SyncPad collaboration server...");
 
   try {
     await server.destroy();
+
+    if (permissionListener) {
+      await permissionListener.query(`UNLISTEN ${permissionChangeChannel}`);
+      permissionListener.release();
+      permissionListener = null;
+    }
+
     await pool.end();
   } finally {
-    process.exit(0);
+    process.exit(exitCode);
   }
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+void start().catch(async (error) => {
+  console.error("Failed to start SyncPad collaboration server.", error);
+
+  try {
+    if (permissionListener) {
+      permissionListener.release();
+      permissionListener = null;
+    }
+
+    await pool.end();
+  } finally {
+    process.exit(1);
+  }
+});
+
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

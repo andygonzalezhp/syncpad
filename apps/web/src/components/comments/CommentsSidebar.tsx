@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { CommentThread } from "@/lib/api";
 import type { CommentMutation } from "@/hooks/useDocumentComments";
 import CommentThreadCard from "./CommentThreadCard";
@@ -19,7 +19,7 @@ type CommentsSidebarProps = {
   isLoading: boolean;
   loadError: string | null;
   mutationError: string | null;
-  mutation: CommentMutation;
+  mutation: CommentMutation[];
   showResolvedComments: boolean;
   onClose: () => void;
   onRefresh: () => void;
@@ -52,6 +52,8 @@ export default function CommentsSidebar({
   onShowResolvedComments,
 }: CommentsSidebarProps) {
   const threadElements = useRef(new Map<string, HTMLDivElement>());
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const headingId = useId();
   const openCount = threads.filter((thread) => thread.status === "OPEN").length;
   const resolvedCount = threads.length - openCount;
   const visibleThreads = showResolvedComments
@@ -59,25 +61,79 @@ export default function CommentsSidebar({
     : threads.filter((thread) => thread.status === "OPEN");
 
   useEffect(() => {
+    if (pendingComment) {
+      return;
+    }
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      closeButton.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [pendingComment]);
+
+  useEffect(() => {
     if (!activeThreadId) {
       return;
     }
 
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
     threadElements.current.get(activeThreadId)?.scrollIntoView({
-      behavior: "smooth",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
       block: "nearest",
     });
   }, [activeThreadId, showResolvedComments]);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      onClose();
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLButtonElement>(
+            'button[title="Show document comments"]',
+          )
+          ?.focus();
+      });
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  function handleClose() {
+    onClose();
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLButtonElement>(
+          'button[title="Show document comments"]',
+        )
+        ?.focus();
+    });
+  }
+
   return (
     <aside
-      className="w-full shrink-0 xl:w-[360px]"
-      aria-label="Document comments"
+      className="fixed inset-x-2 bottom-2 z-50 sm:inset-x-4 sm:bottom-4 xl:static xl:z-auto xl:block xl:w-[360px] xl:shrink-0"
+      aria-labelledby={headingId}
     >
-      <div className="rounded-[1.7rem] border border-[#dedbd3] bg-[#fbfaf7] p-3 shadow-sm xl:sticky xl:top-[188px] xl:max-h-[calc(100vh-212px)] xl:overflow-y-auto">
+      <div
+        className="max-h-[85dvh] w-full overscroll-contain overflow-y-auto rounded-[1.7rem] border border-[#dedbd3] bg-[#fbfaf7] p-3 shadow-2xl xl:sticky xl:top-[188px] xl:max-h-[calc(100vh-212px)] xl:shadow-sm"
+        aria-busy={isLoading || mutation.length > 0}
+      >
         <div className="flex items-start justify-between gap-3 px-2 py-2">
           <div>
-            <h2 className="text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]">
+            <h2
+              id={headingId}
+              className="text-lg font-semibold tracking-[-0.03em] text-[#1d1d1f]"
+            >
               Comments
             </h2>
             <p className="mt-1 text-sm text-[#6e6e73]">
@@ -87,9 +143,10 @@ export default function CommentsSidebar({
 
           <div className="flex items-center gap-1">
             <button
+              ref={closeButton}
               type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-[#4f555c] transition hover:bg-white"
+              onClick={handleClose}
+              className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#4f555c] transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b5cad]"
               aria-label="Close comments"
               title="Close comments"
             >
@@ -100,10 +157,16 @@ export default function CommentsSidebar({
 
         <div className="mx-1 mt-2 rounded-2xl border border-[#dedbd3] bg-white p-3">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#6e6e73]">
-            <span className="rounded-full bg-[#fff3c4] px-2.5 py-1 text-[#765a00]">
+            <span
+              className="rounded-full bg-[#fff3c4] px-2.5 py-1 text-[#765a00]"
+              aria-label={`${openCount} open comments`}
+            >
               Open ({openCount})
             </span>
-            <span className="rounded-full bg-[#eceae5] px-2.5 py-1 text-[#66615a]">
+            <span
+              className="rounded-full bg-[#eceae5] px-2.5 py-1 text-[#66615a]"
+              aria-label={`${resolvedCount} resolved comments`}
+            >
               Resolved ({resolvedCount})
             </span>
           </div>
@@ -112,11 +175,12 @@ export default function CommentsSidebar({
             <span>Show resolved comments</span>
             <input
               type="checkbox"
+              id="show-resolved-comments"
               checked={showResolvedComments}
               onChange={(event) =>
                 onShowResolvedComments(event.target.checked)
               }
-              className="h-4 w-4 accent-[#0b5cad]"
+              className="h-5 w-5 accent-[#0b5cad] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b5cad]"
             />
           </label>
         </div>
@@ -132,14 +196,20 @@ export default function CommentsSidebar({
             <CreateCommentComposer
               key={pendingComment.selectedText}
               selectedText={pendingComment.selectedText}
-              isSubmitting={mutation?.kind === "create"}
+              isSubmitting={mutation.some(
+                (pendingMutation) => pendingMutation.kind === "create",
+              )}
               onCancel={onCancelCreate}
               onSubmit={onCreate}
             />
           )}
 
           {isLoading ? (
-            <p className="rounded-2xl bg-white px-4 py-5 text-sm text-[#6e6e73]">
+            <p
+              role="status"
+              aria-live="polite"
+              className="rounded-2xl bg-white px-4 py-5 text-sm text-[#6e6e73]"
+            >
               Loading comments...
             </p>
           ) : loadError ? (
@@ -178,14 +248,21 @@ export default function CommentsSidebar({
                   isActive={thread.id === activeThreadId}
                   isAnchored={anchoredThreadIds.has(thread.id)}
                   canComment={canComment}
-                  isReplying={
-                    mutation?.kind === "reply" &&
-                    mutation.threadId === thread.id
-                  }
-                  isChangingStatus={
-                    mutation?.kind === "status" &&
-                    mutation.threadId === thread.id
-                  }
+                  isBusy={mutation.some(
+                    (pendingMutation) =>
+                      pendingMutation.kind !== "create" &&
+                      pendingMutation.threadId === thread.id,
+                  )}
+                  isReplying={mutation.some(
+                    (pendingMutation) =>
+                      pendingMutation.kind === "reply" &&
+                      pendingMutation.threadId === thread.id,
+                  )}
+                  isChangingStatus={mutation.some(
+                    (pendingMutation) =>
+                      pendingMutation.kind === "status" &&
+                      pendingMutation.threadId === thread.id,
+                  )}
                   onSelect={() => onSelectThread(thread.id)}
                   onReply={(message) => onReply(thread.id, message)}
                   onChangeStatus={(resolved) =>

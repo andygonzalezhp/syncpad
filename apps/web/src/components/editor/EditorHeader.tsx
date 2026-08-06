@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { DocumentRole } from "@/lib/api";
 import { useSyncPadApi } from "@/lib/useSyncPadApi";
@@ -23,10 +23,29 @@ export default function EditorHeader({
   const [savedTitle, setSavedTitle] = useState(initialTitle);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const titleRef = useRef(initialTitle);
+  const renameInFlight = useRef(false);
+  const leaveWarningRef = useRef<HTMLDivElement>(null);
 
   const canRename = currentUserRole === "OWNER";
   const canOpenShare = currentUserRole === "OWNER";
   const hasUnsavedTitle = title.trim() !== savedTitle;
+
+  useEffect(() => {
+    if (!hasUnsavedTitle) {
+      return;
+    }
+
+    function warnAboutUnsavedTitle(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnAboutUnsavedTitle);
+
+    return () => window.removeEventListener("beforeunload", warnAboutUnsavedTitle);
+  }, [hasUnsavedTitle]);
 
   const roleLabel = useMemo(() => {
     if (currentUserRole === "OWNER") {
@@ -48,6 +67,10 @@ export default function EditorHeader({
       return;
     }
 
+    if (renameInFlight.current || isSaving) {
+      return;
+    }
+
     const trimmedTitle = title.trim();
 
     if (!trimmedTitle) {
@@ -59,18 +82,32 @@ export default function EditorHeader({
       return;
     }
 
+    renameInFlight.current = true;
+
     try {
       setIsSaving(true);
       setMessage(null);
 
-      const updatedDocument = await renameDocument(docId, trimmedTitle);
+      const submittedTitle = trimmedTitle;
+      const updatedDocument = await renameDocument(docId, submittedTitle);
+      const hasNewerTitleChanges =
+        titleRef.current.trim() !== submittedTitle;
 
-      setTitle(updatedDocument.title);
       setSavedTitle(updatedDocument.title);
-      setMessage("All changes saved");
+      if (!hasNewerTitleChanges) {
+        titleRef.current = updatedDocument.title;
+        setTitle(updatedDocument.title);
+        setShowLeaveWarning(false);
+      }
+      setMessage(
+        hasNewerTitleChanges
+          ? "Previous title saved. New title changes are not saved yet."
+          : "Title saved",
+      );
     } catch {
-      setMessage("Could not save title");
+      setMessage("Could not save title. Try again.");
     } finally {
+      renameInFlight.current = false;
       setIsSaving(false);
     }
   }
@@ -78,15 +115,24 @@ export default function EditorHeader({
   return (
     <header className="border-b border-[#dedbd3] bg-[#fbfaf7]/95 backdrop-blur-xl">
       <div className="px-4 py-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 flex-1 items-start gap-4">
             <Link
               href="/"
+              onClick={(event) => {
+                if (hasUnsavedTitle) {
+                  event.preventDefault();
+                  setShowLeaveWarning(true);
+                  window.requestAnimationFrame(() => {
+                    leaveWarningRef.current?.focus();
+                  });
+                }
+              }}
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.1rem] bg-neutral-950 text-xl text-white shadow-sm transition hover:bg-neutral-800"
               aria-label="Back to documents"
               title="Back to documents"
             >
-              ◻
+              ←
             </Link>
 
             <div className="min-w-0 flex-1">
@@ -96,11 +142,16 @@ export default function EditorHeader({
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
                   <input
+                    id="document-title"
+                    aria-label="Document title"
                     value={title}
+                    maxLength={255}
                     readOnly={!canRename}
                     onChange={(event) => {
+                      titleRef.current = event.target.value;
                       setTitle(event.target.value);
                       setMessage(null);
+                      setShowLeaveWarning(false);
                     }}
                     className="min-w-0 max-w-full rounded-xl border border-transparent bg-transparent px-2 py-1 text-[1.55rem] font-semibold leading-none tracking-[-0.04em] text-[#1d1d1f] outline-none transition focus:border-[#d2d2d7] focus:bg-white read-only:cursor-default"
                     placeholder="Untitled document"
@@ -126,26 +177,45 @@ export default function EditorHeader({
                     {roleLabel}
                   </span>
 
-                  <span>•</span>
-
-                  <span>
+                  <span aria-live="polite">
                     {message ??
                       (hasUnsavedTitle
                         ? "Unsaved title changes"
-                        : "All changes saved")}
-                  </span>
-
-                  <span>•</span>
-
-                  <span className="font-mono text-xs text-[#86868b]">
-                    {docId}
+                        : "Title saved")}
                   </span>
                 </div>
+
+                {showLeaveWarning && hasUnsavedTitle && (
+                  <div
+                    ref={leaveWarningRef}
+                    tabIndex={-1}
+                    role="alert"
+                    className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                  >
+                    <span>Save the title, or discard it before leaving.</span>
+                    <Link
+                      href="/"
+                      className="rounded-full bg-amber-950 px-3 py-1.5 font-semibold text-white"
+                    >
+                      Discard and leave
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLeaveWarning(false);
+                        document.getElementById("document-title")?.focus();
+                      }}
+                      className="rounded-full px-3 py-1.5 font-semibold hover:bg-amber-100"
+                    >
+                      Keep editing
+                    </button>
+                  </div>
+                )}
               </form>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex w-full shrink-0 items-center justify-end gap-3 sm:w-auto">
             {canOpenShare && (
               <a
                 href="#sharing-panel"

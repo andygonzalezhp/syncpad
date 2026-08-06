@@ -1,27 +1,24 @@
+import { auth } from "@clerk/nextjs/server";
 import AuthBar from "@/components/auth/AuthBar";
 import DocumentDashboard from "@/components/documents/DocumentDashboard";
+import LandingPage from "@/components/LandingPage";
 
-export default function Home() {
+export default async function Home() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    return <LandingPage />;
+  }
+
   return (
-    <main className="min-h-screen bg-neutral-950 px-6 py-12 text-neutral-100">
-      <section className="mx-auto mb-10 max-w-4xl">
+    <main
+      id="main-content"
+      className="min-h-screen bg-[#f5f7fb] text-slate-900"
+    >
+      <div className="mx-auto w-full max-w-6xl px-4 pb-14 sm:px-6 lg:px-8">
         <AuthBar />
-
-        <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
-          SyncPad
-        </p>
-
-        <h1 className="mt-4 text-5xl font-semibold tracking-tight md:text-7xl">
-          Real-time collaborative editing.
-        </h1>
-
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-neutral-400">
-          Create shared documents, edit together in real time, and sync changes
-          through a Yjs-powered WebSocket collaboration layer.
-        </p>
-      </section>
-
-      <DocumentDashboard />
+        <DocumentDashboard />
+      </div>
     </main>
   );
 }

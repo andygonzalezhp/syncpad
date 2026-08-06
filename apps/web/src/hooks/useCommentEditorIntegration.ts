@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { useDocumentComments } from "@/hooks/useDocumentComments";
 import {
-  focusCommentThread,
+  findCommentThreadRange,
   getAnchoredCommentThreadIds,
   syncCommentMarkClasses,
 } from "@/lib/comments";
@@ -38,24 +38,44 @@ export function useCommentEditorIntegration({
   );
 
   useEffect(() => {
-    if (!editor || syncStatus !== "synced") {
+    if (!editor) {
       return;
     }
 
-    const animationFrame = window.requestAnimationFrame(() => {
-      setAnchoredThreadIds(getAnchoredCommentThreadIds(editor));
-    });
+    let animationFrame: number | null = null;
 
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [editor, syncStatus, comments.threads]);
+    function scheduleRefresh() {
+      if (animationFrame !== null) {
+        return;
+      }
 
-  useEffect(() => {
-    syncCommentMarkClasses(
-      editor,
-      comments.threads,
-      comments.activeThreadId,
-    );
-  }, [editor, comments.threads, comments.activeThreadId]);
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        setAnchoredThreadIds(getAnchoredCommentThreadIds(editor));
+        syncCommentMarkClasses(
+          editor,
+          comments.threads,
+          comments.activeThreadId,
+        );
+      });
+    }
+
+    editor.on("transaction", scheduleRefresh);
+    scheduleRefresh();
+
+    return () => {
+      editor.off("transaction", scheduleRefresh);
+
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [
+    editor,
+    syncStatus,
+    comments.threads,
+    comments.activeThreadId,
+  ]);
 
   function startComment() {
     if (!editor || !canComment) {
@@ -136,8 +156,13 @@ export function useCommentEditorIntegration({
 
   function selectCommentThread(threadId: string) {
     comments.activateThread(threadId);
+    const range = findCommentThreadRange(editor, threadId);
 
-    if (!focusCommentThread(editor, threadId)) {
+    if (
+      !editor ||
+      !range ||
+      !editor.chain().setTextSelection(range).scrollIntoView().run()
+    ) {
       setAnchoredThreadIds((current) => {
         const next = new Set(current);
         next.delete(threadId);

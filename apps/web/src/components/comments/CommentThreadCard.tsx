@@ -9,6 +9,7 @@ type CommentThreadCardProps = {
   isActive: boolean;
   isAnchored: boolean;
   canComment: boolean;
+  isBusy: boolean;
   isReplying: boolean;
   isChangingStatus: boolean;
   onSelect: () => void;
@@ -42,6 +43,7 @@ export default function CommentThreadCard({
   isActive,
   isAnchored,
   canComment,
+  isBusy,
   isReplying,
   isChangingStatus,
   onSelect,
@@ -61,10 +63,10 @@ export default function CommentThreadCard({
       isReplying,
     });
 
-    if (!trimmedReply || isReplying) {
+    if (!trimmedReply || isBusy) {
       commentDebug("reply submission ignored", {
         threadId: thread.id,
-        reason: !trimmedReply ? "empty message" : "request already pending",
+        reason: !trimmedReply ? "empty message" : "thread request already pending",
       });
       return;
     }
@@ -78,6 +80,10 @@ export default function CommentThreadCard({
   }
 
   async function handleChangeStatus() {
+    if (isBusy) {
+      return;
+    }
+
     const resolved = thread.status !== "RESOLVED";
 
     commentDebug("status button clicked", {
@@ -90,6 +96,16 @@ export default function CommentThreadCard({
 
     try {
       await onChangeStatus(resolved);
+
+      if (resolved) {
+        window.requestAnimationFrame(() => {
+          if (document.activeElement === document.body) {
+            document
+              .getElementById("show-resolved-comments")
+              ?.focus();
+          }
+        });
+      }
     } catch {
       // The sidebar presents the shared mutation error.
     }
@@ -104,16 +120,17 @@ export default function CommentThreadCard({
             ? "border-[#dedbd3] bg-[#f5f4f1] hover:border-[#b8b5ad]"
             : "border-[#dedbd3] bg-white hover:border-[#b8b5ad]"
       }`}
+      aria-busy={isBusy}
     >
       <button
         type="button"
         onClick={onSelect}
-        className="block w-full text-left"
+        className="block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b5cad]"
         aria-pressed={isActive}
       >
         <div className="flex items-start justify-between gap-3">
           <blockquote
-            className={`line-clamp-3 border-l-2 pl-3 text-sm leading-6 text-[#4f555c] ${
+            className={`min-w-0 break-words line-clamp-3 border-l-2 pl-3 text-sm leading-6 text-[#4f555c] ${
               thread.status === "RESOLVED"
                 ? "border-[#aaa59d]"
                 : "border-[#f0c24b]"
@@ -123,6 +140,9 @@ export default function CommentThreadCard({
           </blockquote>
 
           <span
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
             className={`shrink-0 rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.12em] ${
               thread.status === "OPEN"
                 ? "bg-[#fff3c4] text-[#765a00]"
@@ -140,7 +160,12 @@ export default function CommentThreadCard({
         )}
       </button>
 
-      <div className="mt-4 space-y-4">
+      <div
+        className="mt-4 space-y-4"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+      >
         {thread.messages.map((message, index) => (
           <div key={message.id} className={index === 0 ? "" : "border-t border-[#eceae5] pt-4"}>
             <div className="flex items-center gap-2">
@@ -186,17 +211,18 @@ export default function CommentThreadCard({
               id={`reply-${thread.id}`}
               value={reply}
               maxLength={10_000}
+              disabled={isBusy}
               onChange={(event) => setReply(event.target.value)}
-              className="min-h-20 w-full resize-y rounded-2xl border border-[#dedbd3] px-3 py-2 text-sm leading-6 outline-none focus:border-[#0b5cad]"
+              className="min-h-20 w-full resize-y rounded-2xl border border-[#dedbd3] px-3 py-2 text-sm leading-6 outline-none focus:border-[#0b5cad] disabled:cursor-not-allowed disabled:bg-[#f5f4f1] disabled:opacity-70"
               placeholder="Reply..."
             />
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                disabled={isChangingStatus}
+                disabled={isBusy}
                 onClick={handleChangeStatus}
-                className="rounded-full px-3 py-2 text-sm font-medium text-[#4f555c] transition hover:bg-[#f5f4f1] disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-11 rounded-full px-3 py-2 text-sm font-medium text-[#4f555c] transition hover:bg-[#f5f4f1] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isChangingStatus
                   ? "Updating..."
@@ -207,8 +233,8 @@ export default function CommentThreadCard({
 
               <button
                 type="submit"
-                disabled={!reply.trim() || isReplying}
-                className="rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!reply.trim() || isBusy}
+                className="min-h-11 rounded-full bg-[#1d1d1f] px-4 py-2 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isReplying ? "Replying..." : "Reply"}
               </button>

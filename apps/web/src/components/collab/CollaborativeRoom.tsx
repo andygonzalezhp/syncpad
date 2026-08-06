@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
   HocuspocusProviderWebsocketComponent,
@@ -21,10 +23,15 @@ export default function CollaborativeRoom({
   docId,
   currentUserRole,
 }: CollaborativeRoomProps) {
+  const router = useRouter();
   const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
 
   const [authFailure, setAuthFailure] = useState<{
+    roomKey: string;
+    message: string;
+  } | null>(null);
+  const [accessFailure, setAccessFailure] = useState<{
     roomKey: string;
     message: string;
   } | null>(null);
@@ -61,6 +68,8 @@ export default function CollaborativeRoom({
   const roomKey = `${docId}-${email}-${currentUserRole}`;
   const authError =
     authFailure?.roomKey === roomKey ? authFailure.message : null;
+  const accessError =
+    accessFailure?.roomKey === roomKey ? accessFailure.message : null;
 
   if (!isLoaded) {
     return (
@@ -88,6 +97,52 @@ export default function CollaborativeRoom({
         <h2 className="text-lg font-semibold">Collaboration unavailable</h2>
 
         <p className="mt-2 text-sm text-red-200">{authError}</p>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setAuthFailure(null)}
+            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-red-950 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Try again
+          </button>
+
+          <Link
+            href="/"
+            className="rounded-full border border-red-700 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-900/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Back to documents
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <section className="rounded-3xl border border-amber-300 bg-amber-50 p-6 text-amber-950 shadow-sm">
+        <h2 className="text-lg font-semibold">Document access changed</h2>
+        <p className="mt-2 text-sm text-amber-900">{accessError}</p>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setAccessFailure(null);
+              router.refresh();
+            }}
+            className="rounded-full bg-amber-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
+          >
+            Refresh access
+          </button>
+
+          <Link
+            href="/"
+            className="rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950"
+          >
+            Back to documents
+          </Link>
+        </div>
       </section>
     );
   }
@@ -100,11 +155,25 @@ export default function CollaborativeRoom({
         token={tokenResolver}
         onAuthenticated={() => {
           setAuthFailure(null);
+          setAccessFailure(null);
         }}
-        onAuthenticationFailed={({ reason }) => {
+        onAuthenticationFailed={() => {
           setAuthFailure({
             roomKey,
-            message: reason || "You do not have access to this document.",
+            message:
+              "The collaboration server could not verify this session. Check your access and try again.",
+          });
+        }}
+        onDisconnect={({ event }) => {
+          if (event.code !== 4403) {
+            return;
+          }
+
+          setAuthFailure(null);
+          setAccessFailure({
+            roomKey,
+            message:
+              "Your document access changed or could not be reverified. Refresh to load your current access.",
           });
         }}
       >
