@@ -16,6 +16,35 @@ export type DocumentPermission = {
   createdAt: string;
 };
 
+export type CommentStatus = "OPEN" | "RESOLVED";
+
+export type CommentAuthor = {
+  id: string;
+  email: string;
+  displayName: string;
+};
+
+export type CommentMessage = {
+  id: string;
+  author: CommentAuthor;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommentThread = {
+  id: string;
+  documentId: string;
+  selectedText: string;
+  status: CommentStatus;
+  createdBy: CommentAuthor;
+  resolvedBy: CommentAuthor | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages: CommentMessage[];
+};
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 

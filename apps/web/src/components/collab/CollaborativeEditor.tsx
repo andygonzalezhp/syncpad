@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Editor } from "@tiptap/core";
+import type { ChainedCommands, Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -22,6 +22,10 @@ import {
   useHocuspocusProvider,
   useHocuspocusSyncStatus,
 } from "@hocuspocus/provider-react";
+import CommentsSidebar from "@/components/comments/CommentsSidebar";
+import { CommentThreadMark } from "@/extensions/CommentThreadMark";
+import { useCommentEditorIntegration } from "@/hooks/useCommentEditorIntegration";
+import { useDocumentComments } from "@/hooks/useDocumentComments";
 import { DocumentRole } from "@/lib/api";
 
 type CurrentUser = {
@@ -32,6 +36,7 @@ type CurrentUser = {
 };
 
 type CollaborativeEditorProps = {
+  documentId: string;
   currentUser: CurrentUser;
   currentUserRole: DocumentRole;
 };
@@ -145,7 +150,10 @@ function calculateStats(text: string): EditorStats {
   };
 }
 
-function runCommand(editor: Editor | null, command: (chain: any) => void) {
+function runCommand(
+  editor: Editor | null,
+  command: (chain: ChainedCommands) => void,
+) {
   if (!editor) {
     return;
   }
@@ -468,6 +476,7 @@ function replaceAllMatches(
 }
 
 export default function CollaborativeEditor({
+  documentId,
   currentUser,
   currentUserRole,
 }: CollaborativeEditorProps) {
@@ -475,6 +484,7 @@ export default function CollaborativeEditor({
   const awareness = useHocuspocusAwareness() as AwarenessState[];
   const connectionStatus = useHocuspocusConnectionStatus();
   const syncStatus = useHocuspocusSyncStatus();
+  const comments = useDocumentComments(documentId, provider);
 
   const [stats, setStats] = useState<EditorStats>({
     words: 0,
@@ -566,6 +576,8 @@ export default function CollaborativeEditor({
           nested: true,
         }),
 
+        CommentThreadMark,
+
         Collaboration.configure({
           document: provider.document,
         }),
@@ -579,6 +591,24 @@ export default function CollaborativeEditor({
         attributes: {
           class:
             "syncpad-editor min-h-[980px] px-[76px] py-[72px] text-[11pt] leading-[1.5] text-[#1d1d1f] outline-none",
+        },
+        handleClick(_view, _pos, event) {
+          const target = event.target;
+
+          if (!(target instanceof Element)) {
+            return false;
+          }
+
+          const commentMark = target.closest<HTMLElement>(
+            "[data-comment-thread-id]",
+          );
+          const threadId = commentMark?.dataset.commentThreadId;
+
+          if (threadId) {
+            comments.activateThread(threadId);
+          }
+
+          return false;
         },
       },
       onCreate({ editor }) {
@@ -606,11 +636,20 @@ export default function CollaborativeEditor({
     ],
   );
 
+  const commentEditor = useCommentEditorIntegration({
+    editor,
+    canComment: canEdit,
+    syncStatus,
+    comments,
+  });
+
   const outlineItems = useMemo(() => {
+    void editorUiTick;
     return buildOutline(editor);
   }, [editor, editorUiTick]);
 
   const findMatches = useMemo(() => {
+    void editorUiTick;
     return findMatchesInDocument(editor, findQuery);
   }, [editor, findQuery, editorUiTick]);
 
@@ -1241,6 +1280,20 @@ export default function CollaborativeEditor({
               onClick={() => setShowFindPanel((current) => !current)}
             />
 
+            <ToolbarButton
+              label={
+                comments.threads.length > 0
+                  ? `Comments (${comments.threads.length})`
+                  : "Comments"
+              }
+              title="Show document comments"
+              active={comments.isPanelOpen}
+              disabled={false}
+              onClick={() =>
+                comments.setIsPanelOpen((current) => !current)
+              }
+            />
+
             <ToolbarDivider />
 
             <ToolbarSelect
@@ -1666,8 +1719,8 @@ export default function CollaborativeEditor({
       </div>
 
       <div className="bg-[#f5f4f1] px-2 pb-12 pt-6 md:px-6">
-        <div className="mx-auto flex max-w-[1380px] gap-8">
-          {showOutline && (
+        <div className="mx-auto flex max-w-[1780px] flex-col gap-6 xl:flex-row xl:gap-8">
+          {showOutline && !comments.isPanelOpen && (
             <aside className="hidden w-[260px] shrink-0 px-3 py-3 xl:block">
               <div className="space-y-5 rounded-3xl bg-transparent px-2">
                 <div>
@@ -1787,6 +1840,10 @@ export default function CollaborativeEditor({
                 >
                   Highlight
                 </SmallButton>
+
+                <SmallButton onClick={commentEditor.startComment}>
+                  Add comment
+                </SmallButton>
               </div>
             )}
 
@@ -1804,6 +1861,29 @@ export default function CollaborativeEditor({
               <EditorContent editor={editor} />
             </div>
           </div>
+
+          {comments.isPanelOpen && (
+            <CommentsSidebar
+              threads={comments.threads}
+              activeThreadId={comments.activeThreadId}
+              anchoredThreadIds={commentEditor.anchoredThreadIds}
+              pendingComment={commentEditor.pendingComment}
+              canComment={canEdit}
+              isLoading={comments.isLoading}
+              loadError={comments.loadError}
+              mutationError={comments.mutationError}
+              mutation={comments.mutation}
+              showResolvedComments={comments.showResolvedComments}
+              onClose={() => comments.setIsPanelOpen(false)}
+              onRefresh={comments.refreshComments}
+              onCancelCreate={commentEditor.cancelPendingComment}
+              onCreate={commentEditor.createPendingComment}
+              onSelectThread={commentEditor.selectCommentThread}
+              onReply={comments.replyToThread}
+              onChangeStatus={comments.changeThreadStatus}
+              onShowResolvedComments={comments.setShowResolvedComments}
+            />
+          )}
         </div>
       </div>
     </section>

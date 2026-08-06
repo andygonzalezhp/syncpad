@@ -4,6 +4,7 @@ import { verifyToken } from "@clerk/backend";
 import { Server } from "@hocuspocus/server";
 import { Database } from "@hocuspocus/extension-database";
 import pg from "pg";
+import { parseCommentSyncEvent } from "./commentEvents.js";
 
 const { Pool } = pg;
 
@@ -270,6 +271,53 @@ const server = new Server({
       },
     }),
   ],
+
+  async onStateless({ connection, document, documentName, payload }) {
+    const event = parseCommentSyncEvent(payload);
+
+    if (!event) {
+      console.warn("[comment:event:ignored]", {
+        documentName,
+        reason: "invalid payload",
+        payloadLength: payload.length,
+      });
+      return;
+    }
+
+    const context = connection.context as CollabUserContext | undefined;
+    const role = context?.user.role;
+
+    if (role !== "OWNER" && role !== "EDITOR") {
+      console.warn("[comment:event:ignored]", {
+        documentName,
+        threadId: event.threadId,
+        type: event.type,
+        reason: "sender cannot mutate comments",
+      });
+      return;
+    }
+
+    const canonicalPayload = JSON.stringify(event);
+    let recipientCount = 0;
+
+    document.broadcastStateless(canonicalPayload, (candidate) => {
+      const shouldReceive = candidate !== connection;
+
+      if (shouldReceive) {
+        recipientCount += 1;
+      }
+
+      return shouldReceive;
+    });
+
+    console.log("[comment:event:broadcast]", {
+      documentName,
+      threadId: event.threadId,
+      type: event.type,
+      sender: context?.user.email ?? "unknown",
+      recipientCount,
+    });
+  },
 
   async onConnect(data) {
     console.log(`[connect] document=${data.documentName}`);

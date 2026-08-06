@@ -45,7 +45,11 @@ export default function DocumentDashboard() {
   }
 
   useEffect(() => {
-    loadDocuments();
+    const timeoutId = window.setTimeout(() => {
+      void loadDocuments();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthReady]);
 

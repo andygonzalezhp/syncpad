@@ -48,7 +48,11 @@ export default function SharePanel({
   }
 
   useEffect(() => {
-    loadPermissions();
+    const timeoutId = window.setTimeout(() => {
+      void loadPermissions();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, isOwner, isAuthReady]);
 

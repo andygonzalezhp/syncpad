@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
   HocuspocusProviderWebsocketComponent,
@@ -24,7 +24,10 @@ export default function CollaborativeRoom({
   const { getToken } = useAuth();
   const { user, isLoaded } = useUser();
 
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authFailure, setAuthFailure] = useState<{
+    roomKey: string;
+    message: string;
+  } | null>(null);
 
   const email =
     user?.primaryEmailAddress?.emailAddress ??
@@ -55,10 +58,9 @@ export default function CollaborativeRoom({
     }),
     [email, name, currentUserRole],
   );
-
-  useEffect(() => {
-    setAuthError(null);
-  }, [docId, email, currentUserRole]);
+  const roomKey = `${docId}-${email}-${currentUserRole}`;
+  const authError =
+    authFailure?.roomKey === roomKey ? authFailure.message : null;
 
   if (!isLoaded) {
     return (
@@ -93,17 +95,21 @@ export default function CollaborativeRoom({
   return (
     <HocuspocusProviderWebsocketComponent url={COLLAB_URL}>
       <HocuspocusRoom
-        key={`${docId}-${email}-${currentUserRole}`}
+        key={roomKey}
         name={docId}
         token={tokenResolver}
         onAuthenticated={() => {
-          setAuthError(null);
+          setAuthFailure(null);
         }}
         onAuthenticationFailed={({ reason }) => {
-          setAuthError(reason || "You do not have access to this document.");
+          setAuthFailure({
+            roomKey,
+            message: reason || "You do not have access to this document.",
+          });
         }}
       >
         <CollaborativeEditor
+          documentId={docId}
           currentUser={currentUser}
           currentUserRole={currentUserRole}
         />

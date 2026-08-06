@@ -161,6 +161,34 @@ textarea {
   flex: 1;
 }
 
+.syncpad-editor .comment-thread-mark {
+  background: rgba(250, 204, 21, 0.34);
+  border-bottom: 2px solid rgba(202, 138, 4, 0.7);
+  border-radius: 0.2rem;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.syncpad-editor .comment-thread-mark.is-resolved {
+  background: rgba(168, 162, 158, 0.1);
+  border-bottom-color: rgba(120, 113, 108, 0.22);
+  border-bottom-width: 1px;
+}
+
+.syncpad-editor .comment-thread-mark.is-active {
+  background: rgba(125, 211, 252, 0.48);
+  border-bottom-color: #0369a1;
+  border-bottom-width: 2px;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+}
+
+.syncpad-editor .comment-thread-mark.is-unknown {
+  background: rgba(214, 211, 209, 0.22);
+  border-bottom-style: dashed;
+}
+
 .syncpad-image {
   display: block;
   height: auto;

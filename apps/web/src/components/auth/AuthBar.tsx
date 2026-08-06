@@ -21,7 +21,7 @@ export default function AuthBar() {
         </p>
       </div>
 
-      <UserButton afterSignOutUrl="/" />
+      <UserButton />
     </div>
   );
 }
