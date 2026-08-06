@@ -16,6 +16,7 @@ jobs:
     name: Repository hygiene
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -28,6 +29,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -euo pipefail
+
           if [[ -n "${BASE_SHA}" && ! "${BASE_SHA}" =~ ^0+$ ]]; then
             git diff --check "${BASE_SHA}" "${GITHUB_SHA}"
           else
@@ -38,7 +40,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tracked_artifacts="$(git ls-files | grep -E '(^|/)(node_modules|\.next|dist|target|coverage)(/|$)|(^|/)tsconfig\.tsbuildinfo$' || true)"
+
+          tracked_artifacts="$(
+            git ls-files |
+              grep -E '(^|/)(node_modules|\.next|dist|target|coverage)(/|$)|(^|/)tsconfig\.tsbuildinfo$' ||
+              true
+          )"
+
           if [[ -n "${tracked_artifacts}" ]]; then
             echo "Generated artifacts must not be committed:"
             echo "${tracked_artifacts}"
@@ -49,14 +57,17 @@ jobs:
     name: Frontend
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     defaults:
       run:
         working-directory: apps/web
+
     env:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
       CLERK_SECRET_KEY: ci-placeholder-not-a-secret
       NEXT_PUBLIC_API_URL: http://127.0.0.1:8080
       NEXT_PUBLIC_COLLAB_URL: ws://127.0.0.1:1234
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -91,9 +102,11 @@ jobs:
     name: Collaboration service
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     defaults:
       run:
         working-directory: services/collab
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -122,9 +135,11 @@ jobs:
     name: Backend
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
     defaults:
       run:
         working-directory: services/api
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
